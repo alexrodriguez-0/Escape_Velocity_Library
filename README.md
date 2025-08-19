@@ -110,9 +110,7 @@ results = main(
 
 ### Escape profile in an accelerating background
 The observable escape surface is tied to the **effective** potential:
-$$
-v_{\rm esc}^2(r) = -2\big[\Psi(r)-\Psi(r_{\rm eq})\big] \;-\; q(z)\,H^2(z)\,\big(r^2-r_{\rm eq}^2\big),
-$$
+$$v_{\rm esc}^2(r) = -2\big[\Psi(r)-\Psi(r_{\rm eq})\big] - q(z)H^2(z)\big(r^2-r_{\rm eq}^2\big)$$
 where $\Psi(r)$ is the matter-only potential, $q(z)$ the **deceleration parameter**, $H(z)$ the Hubble parameter, and $r_{\rm eq}$ the radius where the inward gravitational acceleration balances the outward cosmological term.
 
 ### Mass model and c(M)
@@ -159,30 +157,13 @@ The example uses spectroscopic members from **HeCS** and **HeCS-SZ** (Rines et a
 
 ## Citation
 
-If you use this library or its results, please cite:
+If you use this library or its results, please cite the arxiv link, or ApJ Submission (under review):
 
 - **Rodriguez et al. (2025)** — *Concordance of Weak Lensing and Escape Velocity Cluster Masses*, **arXiv:2507.20938**.
 
-**BibTeX (placeholder):**
-```bibtex
-@article{RodriguezEtAl2025,
-  author  = {Rodriguez, A. and collaborators},
-  title   = {Concordance of Weak Lensing and Escape Velocity Cluster Masses},
-  year    = {2025},
-  eprint  = {2507.20938},
-  archivePrefix = {arXiv}
-}
-```
-
----
-
-## License
-
-TBD (e.g., MIT). Please add a `LICENSE` file if you plan to distribute.
 
 ---
 
 ## Contact
 
-- Alexander Rodriguez — <alexcrod@umich.edu>
-- Christopher J. Miller — <christoq@umich.edu>
+- Alexander Rodriguez — <alexcrod@umich.edu
