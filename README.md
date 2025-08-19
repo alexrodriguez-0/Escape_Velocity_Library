@@ -1,158 +1,188 @@
 # Escape_Velocity_Library
-All tools and functions required for escape velocity analysis of galaxy clusters.
-Escape Velocity Mass Estimation Library
-A Python library for estimating galaxy cluster masses using the escape velocity technique, as described in Rodriguez et al. 2025 (arXiv:2507.20938).
-Overview
-This library implements a novel approach to measure galaxy cluster masses by identifying and modeling the escape velocity edge in projected phase-space data. Unlike traditional caustic techniques, this method accounts for the statistical suppression of the observed edge due to sparse sampling through a calibrated suppression function (Zv).
-Key Features
 
-Accurate mass estimation: Achieves excellent agreement with weak lensing masses (correlation coefficient ~0.68)
-Minimal bias: ~2% systematic bias when proper cosmology is assumed
-Robust to systematics: Handles non-equilibrium clusters, asphericity, and interlopers
-MCMC-based inference: Full posterior distributions for mass estimates
+Tools to infer **galaxy cluster masses** from spectroscopic radius–velocity phase space via the **escape‑velocity edge**, with a calibrated suppression factor \(Z_v\) that corrects for sparse sampling. The workflow follows the methodology in **Rodriguez et al. (2025)** and includes an end‑to‑end example using **HeCS / HeCS‑SZ** spectroscopy (Rines et al. 2013; Rines et al. 2016; >40,000 galaxies).
 
-Installation
-Prerequisites
-bashpip install numpy pandas matplotlib astropy emcee scipy
-Required Libraries
+> **Please cite:** Rodriguez et al. (2025), *Concordance of Weak Lensing and Escape Velocity Cluster Masses*, arXiv:2507.20938.
 
-numpy >= 1.19
-pandas >= 1.0
-matplotlib >= 3.0
-astropy >= 4.0
-emcee >= 3.0
-scipy >= 1.5
-multiprocessing (standard library)
+---
 
-Repository Structure
+## Repository layout
+
+```
 Escape_Velocity_Library/
-├── AGAMA_Zv_calibration/       # Pre-computed suppression function calibrations
-│   └── Zv_fits_z_*.pkl         # Calibration files for z∈[0,0.7], M200∈[10^14,10^15.6] M⊙
+├── AGAMA_Zv_calibration/              # Precomputed Z_v calibration (grid in redshift, mass, sampling)
+│   └── Zv_fits_z_0.01_M200_14.0.pkl   # Example filename pattern (see “Z_v calibration”)
 ├── Example/
-│   ├── run_example.py           # Example script for Abell 7 cluster
-│   └── Rines_galaxy_data.txt   # Galaxy spectroscopic data from HeCS/HeCS-SZ
-└── Function_Libraries/
-    ├── escape_analysis_functions.py  # Main analysis pipeline
-    └── escape_theory_functions.py    # Theoretical models and cosmology
-Methodology
-Physical Model
-The escape velocity profile is derived from the effective potential in an accelerating universe:
-v_esc²(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z)H²(z)(r² - r_eq²)
-where:
+│   ├── run_example.py                  # Minimal end-to-end example (configure paths, run mass inference)
+│   └── Rines_galaxy_data.txt           # Example input: RAh RAm RAs DEd DEm DEs redshift
+└── Function/
+    └── Libraries/
+        ├── escape_analysis_functions.py   # Phase-space building, interlopers, edge, MCMC wrapper
+        └── escape_theory_functions.py     # v_esc model, cosmology helpers, c(M) mapping, r_eq
+```
 
-Ψ(r) is the gravitational potential (modeled using a Dehnen profile fitted to NFW)
-r_eq is the equilibrium radius where gravitational and cosmological accelerations balance
-q(z) is the deceleration parameter
-H(z) is the Hubble parameter
+---
 
-Key Modeling Assumptions
+## Z\_v calibration (AGAMA\_Zv\_calibration)
 
-Density Profile: Dehnen profile parametrization mapped to NFW with mass-concentration relation (Duffy et al. 2008)
-Cosmology: Flat ΛCDM (Ωm = 0.3, h = 0.7 by default, customizable)
-Suppression Function: Skewed-normal distribution calibrated using AGAMA simulations
-Velocity Anisotropy: Constant β = 0.25 (validated against simulations)
-Interloper Removal: Shifting-gapper algorithm with optimized parameters
-Edge Identification: Maximum absolute velocity in radial bins with enforced monotonicity
+The calibration quantifies the **down-sampling suppression** of the measured escape-velocity edge relative to the true escape curve. It was generated with **AGAMA** and stored as pickled fit files with names like:
+```
+Zv_fits_z_{z:.2f}_M200_{M:.1f}.pkl
+```
 
-Suppression Function (Zv)
-The observed escape edge is suppressed relative to the true 3D escape velocity:
-⟨v_esc,observed⟩(r⊥) = ⟨v_esc,3D⟩(r⊥) / Zv(N)
-where Zv follows a skewed-normal distribution with parameters dependent on the phase-space sampling N (number of galaxies between 0.2-1.0 r200).
-Usage
-Basic Example
-pythonimport numpy as np
+**Coverage of the grid** used by this library:
+- **Redshift:** \(0.0 \le z \le 0.7\)
+- **Mass:** \(14.0 \le \log_{10}(M_{200}/M_\odot) \le 15.6\)
+- **Sampling:** \(50 \le N \le 1200\) member galaxies between \(0.2\) and \(1.0\,r_{200}\)
+
+The \(Z_v\) distribution is modeled as a **skew‑normal**, whose parameters are smooth (approximately linear) functions of \(\log_{10} N\) with weak dependence on \(z\), \(M_{200}\), and **radial bin**. The analysis draws \(Z_v\) for each bin via inverse‑CDF sampling consistent with the grid.
+
+> You do **not** need AGAMA installed to run inference—only these precomputed calibration files are required.
+
+---
+
+## Installation
+
+This is a pure‑Python library.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install numpy scipy pandas astropy emcee matplotlib
+```
+
+---
+
+## Quick start (example)
+
+1. Edit `Example/run_example.py` to set:
+   - `path_to_Zv_calibration = '/path/to/Escape_Velocity_Library/AGAMA_Zv_calibration'`
+   - `path_to_galaxy_data = '/path/to/Escape_Velocity_Library/Example/'`
+   - `cluster_positional_data = (cl_ra_deg, cl_dec_deg, cl_z)`
+   - Initial mass guess/prior widths: `M200`, `M200_err_up`, `M200_err_down` (log‑space dex widths)
+   - Cosmology: `cosmo_name='FlatLambdaCDM'`, `cosmo_params=[Omega_m, h]` (e.g., `[0.3, 0.7]`)
+
+2. **Input format** for `Rines_galaxy_data.txt` (one galaxy per line):
+   ```
+   RAh  RAm  RAs   DEd  DEm  DEs   redshift
+   ```
+   RA and Dec are **sexagesimal**; `DEd` carries the sign. Redshift is dimensionless \(z\).
+
+3. Run:
+   ```bash
+   python Example/run_example.py
+   ```
+
+**Outputs**
+- Phase‑space plot \(v_{\rm los}\) vs \(r_\perp/r_{200}\) with: interlopers removed, measured **down‑sampled** edge, **suppressed** theoretical escape curve, and uncertainty bands.
+- Posterior summary for \(M_{200}\) (median and 68% credible interval).
+
+---
+
+## Programmatic API (typical)
+
+```python
 from escape_analysis_functions import main
-from escape_theory_functions import cosmology
-from astropy.cosmology import FlatLambdaCDM
 
-# Set cosmology
-cosmo = FlatLambdaCDM(H0=70, Om0=0.3, name='FlatLambdaCDM')
-cosmo_params = [0.3, 0.7]  # [Omega_m, h]
+results = main(
+    path_to_Zv_calibration,         # str: folder with AGAMA_Zv_calibration tables
+    galaxy_positional_data,         # ndarray (N,7): [RAh,RAm,RAs,DEd,DEm,DEs,redshift]
+    cluster_positional_data,        # tuple: (cl_ra_deg, cl_dec_deg, cl_z)
+    M200,                           # float: initial guess for M200 [Msun]
+    M200_err_up,                    # float: +dex prior half-width on log10(M200)
+    M200_err_down,                  # float: −dex prior half-width on log10(M200)
+    cosmo_params,                   # list: e.g., [Omega_m, h] for FlatLambdaCDM
+    cosmo_name,                     # str: e.g., 'FlatLambdaCDM'
+    nwalkers=250, nsteps=1000       # MCMC controls
+)
+```
 
-# Load galaxy data (format: RAh, RAm, RAs, DEd, DEm, DEs, redshift)
-galaxy_data = np.genfromtxt('Rines_galaxy_data.txt')
+**Key internals** (see `Function/Libraries/`):
+- `ClusterDataHandler.calculate_projected_quantities(...)` → \(r_\perp\) (Mpc), \(v_{\rm los}\) (km/s)
+- `ClusterDataHandler.shiftgapper(data, gap_prev, nbin_val, gap_val, coremin)` → interloper removal with optional **core exclusion** radius
+- `get_edge(bins, ...)` → edge measurement (max \(|v_{\rm los}|\) per radial bin) with **outer‑bin monotonic** enforcement
+- `EscapeVelocityModeling.sample_Zv(N, z, log10M, rbin)` → draw \(Z_v\) for given sampling \(N\), redshift \(z\), mass, and radial bin
+- Theory layer: `v_esc_dehnen`, `dehnen_nfwM200_errors`, `D_A`, `H_z_function`, `q_z_function`, `rho_crit_z`
 
-# Cluster parameters
-cluster_coords = (2.939, 32.416, 0.106)  # (RA[deg], Dec[deg], z)
-M200_initial = 4.4e14  # Initial mass estimate [M⊙]
-M200_err_up = 0.156    # Upper error in dex
-M200_err_down = 0.246  # Lower error in dex
+---
 
-# Run mass estimation
-path_to_calibration = '/path/to/AGAMA_Zv_calibration'
-main(path_to_calibration, galaxy_data, cluster_coords, 
-     M200_initial, M200_err_up, M200_err_down,
-     cosmo_params, 'FlatLambdaCDM', 
-     nwalkers=250, nsteps=1000)
-Input Data Format
-Galaxy Data: ASCII file with columns:
+## Modeling assumptions (precise)
 
-Columns 1-3: Right Ascension (hours, minutes, seconds)
-Columns 4-6: Declination (degrees, arcminutes, arcseconds)
-Column 7: Redshift (as cz in km/s)
+### Escape profile in an accelerating background
+The observable escape surface is tied to the **effective** potential:
+\[
+v_{\rm esc}^2(r) = -2\big[\Psi(r)-\Psi(r_{\rm eq})\big] - q(z)\,H^2(z)\,\big(r^2-r_{\rm eq}^2\big),
+\]
+where \(\Psi(r)\) is the matter‑only potential, \(q(z)\) the **deceleration parameter**, \(H(z)\) the Hubble parameter, and \(r_{\rm eq}\) the radius where the inward gravitational acceleration balances the outward cosmological term.
 
-Cluster Data: Tuple containing:
+### Mass model and c(M)
+We represent \(\Psi(r)\) with a **Dehnen** profile. When inference is parameterized by \(M_{200}\), we map to Dehnen parameters through an **NFW** proxy with a redshift‑dependent concentration–mass relation (configurable; a standard choice like Dutton & Macciò 2014 is supported) and \(\rho_{\rm crit}(z)\). The mapping minimizes profile mismatch on \(0.2 \le r/r_{200} \le 1\).
 
-RA in decimal degrees
-Dec in decimal degrees
-Cluster redshift
+### Down‑sampled edge and suppression \(Z_v\)
+The measured edge (max \(|v_{\rm los}|\) per radial bin) from a finite sample is **suppressed** relative to the true escape curve. We model this with a multiplicative factor \(Z_v>1\) whose distribution depends on:
+- **Sampling** \(N\): number of *member* galaxies between \(0.2\) and \(1.0\,r_{200}\) **after** interloper removal and centering,
+- **Redshift** \(z\) and **mass** \(M_{200}\) (weak dependence),
+- **Radial bin**.
 
-Key Parameters
+The \(Z_v\) distribution per bin is a **skew‑normal** with parameters expressed as smooth functions of \(\log_{10} N\). We draw \(Z_v\) for each bin when comparing data to theory.
 
-nwalkers: Number of MCMC walkers (default: 250)
-nsteps: Number of MCMC steps per walker (default: 1000)
-n_processes: Number of parallel processes (default: 30)
+### Binning, monotonicity, and interlopers
+- **Radial bins:** **5** uniform bins from **0.2** to **1.0** \(r_{200}\).
+- **Monotonicity:** enforce a **monotonic decrease** of the edge in the **outer three** bins.
+- **Interlopers:** **shifting‑gapper** with typical settings **20 galaxies/bin** and **600 km/s** initial gap; a **core exclusion** (e.g., `coremin ≈ 0.44 r_{200}` for 5 bins) prevents over‑flagging at small radii.
+- **Velocity cut:** \(|v_{\rm los}| < 4500\) km/s during construction of the phase space.
 
-Calibration Data
-The AGAMA_Zv_calibration/ directory contains pre-computed suppression functions covering:
+### Errors and likelihood
+- Spectroscopic errors \(\sigma_{cz}\sim 30\,\mathrm{km\,s^{-1}}\) are added in quadrature to edge uncertainties.
+- Likelihood: Gaussian over the 5 radial bins comparing the **down‑sampled** edge to the **suppressed** theoretical curve.
+- Inference: `emcee` affine‑invariant ensemble sampler on \(\log_{10} M_{200}\); report the posterior median and 68% credible interval.
 
-Redshift range: 0.00 ≤ z ≤ 0.70 (steps of 0.05)
-Mass range: 14.0 ≤ log₁₀(M200/M⊙) ≤ 15.6 (steps of 0.1 dex)
-Sampling range: 50 ≤ N ≤ 1200 galaxies
+### Centers and systemic velocity
+The cluster sky center and systemic redshift are iteratively refined (default ~10 iterations) using galaxies in \(0.2\le r_\perp/r_{200}\le 1.0\) to symmetrize the phase space. Outliers at \(|v_{\rm los}|>4500\,\mathrm{km\,s^{-1}}\) are removed a priori.
 
-Each file contains skewed-normal parameters (location, scale, skewness) as linear functions of N for 5 radial bins.
-Output
-The pipeline produces:
+---
 
-Mass posterior: MCMC chains with escape velocity mass estimates
-Diagnostics: Convergence statistics and uncertainty estimates
-Visualization: Phase-space diagram showing:
+## Reproducibility tips
 
-Galaxy distribution
-Identified edge profile
-Dynamical mass fit
-Comparison with initial mass estimate
+- Keep **5 bins** on \(0.2 \rightarrow 1.0\,r_{200}\) to remain within the \(Z_v\) calibration.
+- Measure **\(N\)** for the \(Z_v\) call **after** interloper removal and within \(0.2\le r/r_{200}\le 1.0\).
+- Use a consistent **cosmology** in both reduction and theory (`cosmo_name`, `cosmo_params`).
+- If you change shifting‑gapper hyper‑parameters, verify edge stability (few‑percent variations expected within reasonable ranges).
 
+---
 
+## Data acknowledgement
 
-Systematic Uncertainties
-Accounted for in the method:
+The example uses spectroscopic members from **HeCS** and **HeCS‑SZ** (Rines et al. 2013; Rines et al. 2016).
 
-Line-of-sight projection effects (via Zv calibration)
-Sparse sampling variations
-Interloper contamination
-Galaxy redshift errors (~30 km/s)
-Non-equilibrium dynamics
-Cluster asphericity
+---
 
-Dominant systematic:
+## Citation
 
-Cosmological parameters (particularly H₀): ~10% effect on masses
+If you use this library or its results, please cite:
 
-Citation
-If you use this code in your research, please cite:
-bibtex@article{Rodriguez2025,
-    author = {Rodriguez, Alexander and Miller, Christopher J.},
-    title = {The Concordance of Weak Lensing and Escape Velocity Mass Estimates for Galaxy Clusters},
-    journal = {arXiv e-prints},
-    year = {2025},
-    eprint = {2507.20938},
-    archivePrefix = {arXiv},
-    primaryClass = {astro-ph.CO}
+- **Rodriguez et al. (2025)** — *Concordance of Weak Lensing and Escape Velocity Cluster Masses*, **arXiv:2507.20938**.
+
+**BibTeX (placeholder):**
+```bibtex
+@article{RodriguezEtAl2025,
+  author  = {Rodriguez, A. and collaborators},
+  title   = {Concordance of Weak Lensing and Escape Velocity Cluster Masses},
+  year    = {2025},
+  eprint  = {2507.20938},
+  archivePrefix = {arXiv}
 }
+```
 
-Contact
-For questions or issues, please contact:
+---
 
-Alexander Rodriguez (alexcrod@umich.edu)
-Christopher J. Miller (christoq@umich.edu)
+## License
+
+TBD (e.g., MIT). Please add a `LICENSE` file if you plan to distribute.
+
+---
+
+## Contact
+
+- Alexander Rodriguez — <alexcrod@umich.edu>
+- Christopher J. Miller — <christoq@umich.edu>
