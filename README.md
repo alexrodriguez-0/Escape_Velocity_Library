@@ -25,7 +25,7 @@ Escape_Velocity_Library/
 
 ## Z_v calibration (AGAMA_Zv_calibration)
 
-The calibration quantifies the **down-sampling suppression** of the measured escape-velocity edge relative to the true escape curve. It was generated with **AGAMA** and stored as pickled fit files with names like:
+The calibration quantifies the **down-sampling suppression** of the measured escape-velocity edge relative to the true escape profile. It was generated with **AGAMA** and stored as pickled fit files with names like:
 ```
 Zv_fits_z_{z:.2f}_M200_{M:.1f}.pkl
 ```
@@ -35,7 +35,7 @@ Zv_fits_z_{z:.2f}_M200_{M:.1f}.pkl
 - **Mass:** $14.0 \le \log_{10}(M_{200}/M_\odot) \le 15.6$
 - **Sampling:** $50 \le N \le 1200$ member galaxies between $0.2$ and $1.0\,r_{200}$
 
-The $Z_v$ distribution is modeled as a **skew-normal**, whose parameters are smooth (approximately linear) functions of $\log_{10} N$ with weak dependence on $z$, $M_{200}$, and **radial bin**. The analysis draws $Z_v$ for each bin via inverse-CDF sampling consistent with the grid.
+The $Z_v$ distribution in each bin is modeled as a **skew-normal**, whose parameters are smooth (approximately linear) functions of $\log_{10} N$ with weak dependence on $z$ and $M_{200}$. The analysis draws $Z_v$ for each bin via inverse-CDF sampling consistent with the grid.
 
 > You do **not** need AGAMA installed to run inference—only these precomputed calibration files are required.
 
@@ -74,7 +74,7 @@ pip install numpy scipy pandas astropy emcee matplotlib
    ```
 
 **Outputs**
-- Phase-space plot $v_{\rm los}$ vs $r_\perp/r_{200}$ with: interlopers removed, measured **down-sampled** edge, **suppressed** theoretical escape curve, and uncertainty bands.
+- Phase-space plot $v_{\rm los}$ vs $r_\perp/r_{200}$ with: interlopers removed, measured **down-sampled** edge, **suppressed** theoretical escape profile, and uncertainty bands.
 - Posterior summary for $M_{200}$ (median and 68% credible interval).
 
 ---
@@ -114,10 +114,10 @@ $$v_{\rm esc}^2(r) = -2\big[\Psi(r)-\Psi(r_{\rm eq})\big] - q(z)H^2(z)\big(r^2-r
 where $\Psi(r)$ is the matter-only potential, $q(z)$ the **deceleration parameter**, $H(z)$ the Hubble parameter, and $r_{\rm eq}$ the radius where the inward gravitational acceleration balances the outward cosmological term.
 
 ### Mass model and c(M)
-We represent $\Psi(r)$ with a **Dehnen** profile. When inference is parameterized by $M_{200}$, we map to Dehnen parameters through an **NFW** proxy with a redshift-dependent concentration–mass relation (configurable; a standard choice like Dutton & Macciò 2014 is supported) and $\rho_{\rm crit}(z)$. The mapping minimizes profile mismatch on $0.2 \le r/r_{200} \le 1$.
+We represent $\Psi(r)$ with a **Dehnen** profile. When inference is parameterized by $M_{200}$, we map to Dehnen parameters through an **NFW** proxy with a redshift-dependent concentration–mass relation (configurable; a standard choice like Dutton & Macciò 2014 is supported) and $\rho_{\rm crit}(z)$.
 
 ### Down-sampled edge and suppression $Z_v$
-The measured edge (max $|v_{\rm los}|$ per radial bin) from a finite sample is **suppressed** relative to the true escape curve. We model this with a multiplicative factor $Z_v>1$ whose distribution depends on:
+The measured edge (max $|v_{\rm los}|$ per radial bin) from a finite sample is **suppressed** relative to the true escape profile. We model this with a multiplicative factor $Z_v>1$ whose distribution depends on:
 - **Sampling** $N$: number of *member* galaxies between $0.2$ and $1.0\,r_{200}$ **after** interloper removal and centering,
 - **Redshift** $z$ and **mass** $M_{200}$ (weak dependence),
 - **Radial bin**.
