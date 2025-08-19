@@ -138,6 +138,9 @@ The $Z_v$ distribution per bin is a **skew-normal** with parameters expressed as
 ### Centers and systemic velocity
 The cluster sky center and systemic redshift are iteratively refined (default ~10 iterations) using galaxies in $0.2\le r_\perp/r_{200}\le 1.0$ to symmetrize the phase space. Outliers at $|v_{\rm los}|>4500\,\mathrm{km\,s^{-1}}$ are removed a priori.
 
+### $M_{200}$ Starting Estimate
+The model implicitly assumes an initial guess for the cluster mass to bin the phase-space data and measure the sampling. The weak covariance of this starting estimate is elaborated upon in Rodriguez et al. 2025, where it is found to not be of significant concern.
+
 ---
 
 ## Reproducibility tips
