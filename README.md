@@ -66,7 +66,7 @@ pip install numpy scipy pandas astropy emcee matplotlib
    ```
    RAh  RAm  RAs   DEd  DEm  DEs   redshift
    ```
-   RA and Dec are **sexagesimal**; `DEd` carries the sign. Redshift is dimensionless $z$.
+   RA and Dec are in decimal degrees. Redshift is dimensionless $z$.
 
 3. Run:
    ```bash
@@ -86,7 +86,7 @@ from escape_analysis_functions import main
 
 results = main(
     path_to_Zv_calibration,         # str: folder with AGAMA_Zv_calibration tables
-    galaxy_positional_data,         # ndarray (N,7): [RAh,RAm,RAs,DEd,DEm,DEs,redshift]
+    galaxy_positional_data,         # ndarray (N,3): [RA,DEC,redshift]
     cluster_positional_data,        # tuple: (cl_ra_deg, cl_dec_deg, cl_z)
     M200,                           # float: initial guess for M200 [Msun]
     M200_err_up,                    # float: +dex prior half-width on log10(M200)
