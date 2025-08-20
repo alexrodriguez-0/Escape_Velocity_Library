@@ -508,7 +508,6 @@ class ClusterDataHandler:
                     r_fit.append((ww[i] + ww[i+1]) / 2)
 
                 if i >= 2:
-                    # Ensures that there are galaxies in the first bin
                     max_i = v_fit_1[-1]
                     w_use = np.where(np.abs(galaxy_v[w]) < max_i)[0]
                     galaxy_v_use = galaxy_v[w][w_use]
@@ -588,27 +587,23 @@ class MCMCMassEstimator:
             
         return lp + ll
 
-def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_data, M200, R200, cosmo_params, cosmo_name):
+def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_data, M200, R200, vesc_error, coremin_cut, cut, cosmo_params, cosmo_name):
     '''
     Prepares the Escape Velocity Mass Estimation by estimating the edge from phase-space data
     '''
+    
     data_handler = ClusterDataHandler()
     cl_ra, cl_dec, cl_z = cluster_positional_data
-    gal_ras = 15*(galaxy_positional_data[:,0] + galaxy_positional_data[:,1]/60 + galaxy_positional_data[:,2]/3600)
-    signs = np.ones(len(galaxy_positional_data))
-    # The logic below follows the galaxy positional data format from Rines 2013 and Rines 2016
-    neg_indices = galaxy_positional_data[:,3] < 0
-    signs[neg_indices] = -1
-    gal_decs = signs * (np.abs(galaxy_positional_data[:,3]) + galaxy_positional_data[:,4]/60 + galaxy_positional_data[:,5]/3600)
-    gal_zs = galaxy_positional_data[:,6]/(const.c.value/1000)
+    gal_ras = galaxy_positional_data[:,0]
+    gal_decs = galaxy_positional_data[:,1]
+    gal_zs = galaxy_positional_data[:,2]
+    
     
     # Model hyper-parameters
     min_r = 0.2
     max_r = 1
-    vesc_error = 30
-    bins = 5
-    coremin_cut = 0.44 # no interlopers in first radial bin, for 5 bins
     Nbin, gap = 20, 600
+    bins = 5
     
     # Model restrictions
     N_min = 50
@@ -618,7 +613,6 @@ def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_dat
     z_min= 0.0
     z_max = 0.7
     
-    cut = 4500
     
     # Use the data handler methods to construct the phase-space
     gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = data_handler.iterate_center(
@@ -727,19 +721,26 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
         
         # Extract results
         # Burn-in: discard first half of *steps*
-        burn_steps = int(0.5 * nsteps)
-        flat = sampler.get_chain(discard=burn_steps, flat=True)
-        samples = flat[:, 0]  # log10 M200
+        burn = int(0.5 * nsteps)  # or 3*max(tau)
+        flat = sampler.get_chain(discard=burn, flat=True)[:, 0]
+        logp = sampler.get_log_prob(discard=burn, flat=True)
+        samples = flat[np.isfinite(logp)]
+        #try:
+            #tau = sampler.get_autocorr_time(quiet=True)
+            # consider thin = int(0.5 * max(tau))
+        #except Exception:
+            #pass
+        plt.hist(samples)
+        plt.xlabel(r'Posterior $M_{200}$')
+        plt.show()
 
         # Central 68% interval
         one_sig_down, median, one_sig_up = np.quantile(samples, [0.158655, 0.5, 0.841345])
 
         
-        # Print results if progress is enabled
-        if progress:
-            print('Escape Velocity Mass Estimate:',
-                  np.round(median, 2), '+', np.round(one_sig_up-median, 2),
-                  '-', np.round(median-one_sig_down, 2))
+        print('Escape Velocity Mass Estimate:',
+              np.round(median, 2), '+', np.round(one_sig_up-median, 2),
+              '-', np.round(median-one_sig_down, 2))
         
         return {
             'samples': samples,
@@ -827,8 +828,10 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
         plt.show()
         
 # main function
-def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
-         M200,M200_err_up,M200_err_down,cosmo_params,cosmo_name,nwalkers=250,nsteps=1000,n_processes=os.cpu_count()):
+def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data,
+         M200, M200_err_up, M200_err_down, cosmo_params, cosmo_name,
+         nwalkers=250, nsteps=2000, n_processes=os.cpu_count(),
+         vesc_error=30, coremin_cut=0.44, cut=4500):
     """
     Perform escape velocity-based cluster mass estimation using MCMC analysis.
     
@@ -844,37 +847,34 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
         contain pre-computed calibration data for velocity anisotropy corrections
         in the format 'Zv_fits_z_{z:.2f}_M200_{M:.1f}.pkl'.
         
-    galaxy_positional_data : array-like, shape (N, 7)
-        Galaxy positional and velocity data with columns:
-        [RAh, RAm, RAs, DEd, DEm, DEs, redshift]
+    galaxy_positional_data : array-like, shape (N, 3)
+        Galaxy positions and redshift with columns:
+        [RA_deg, DEC_deg, redshift]
         where:
-        - RAh, RAm, RAs: Right ascension in hours, minutes, seconds
-        - DEd, DEm, DEs: Declination in degrees, arcminutes, arcseconds
-        - redshift: Galaxy redshift (as velocity in km/s divided by c)
-        
+        - RA_deg  : Right ascension in decimal degrees (0 <= RA_deg < 360)
+        - DEC_deg : Declination in decimal degrees (-90 <= DEC_deg <= +90)
+        - redshift: Dimensionless z (NOT velocity/c)
+
     cluster_positional_data : tuple of (float, float, float)
-        Cluster coordinates and redshift as (cl_ra, cl_dec, cl_z) where:
-        - cl_ra: Cluster right ascension in decimal degrees
-        - cl_dec: Cluster declination in decimal degrees  
-        - cl_z: Cluster redshift
-        
+        Cluster coordinates and redshift as (cl_ra_deg, cl_dec_deg, cl_z) where:
+        - cl_ra_deg  : Cluster right ascension in decimal degrees
+        - cl_dec_deg : Cluster declination in decimal degrees
+        - cl_z       : Cluster redshift (dimensionless)
         
     M200 : float
         Initial estimate of cluster mass M200 in solar masses.
         This serves as the starting point and prior center for MCMC estimation.
         
     M200_err_up : float
-        Upper 1-sigma uncertainty on M200 in log10 space.
-        Used for plotting comparison with dynamical mass estimate.
-        NOTE THIS IS MEASURED IN DEX.
+        Upper 1-sigma uncertainty on M200 in log10 space (dex).
+        Used for plotting comparison with the dynamical mass estimate.
         
     M200_err_down : float  
-        Lower 1-sigma uncertainty on M200 in log10 space.
-        Used for plotting comparison with dynamical mass estimate.
-        NOTE THIS IS MEASURED IN DEX.
+        Lower 1-sigma uncertainty on M200 in log10 space (dex).
+        Used for plotting comparison with the dynamical mass estimate.
         
     cosmo_params : list
-        Cosmological parameters in format dependent on cosmo_name:
+        Cosmological parameters in format dependent on `cosmo_name`:
         - 'FlatLambdaCDM': [Omega_m, h]
         - 'LambdaCDM': [Omega_m, Omega_de, h]
         - 'FlatwCDM': [Omega_m, w0, h]
@@ -883,17 +883,36 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
         
     cosmo_name : str
         Name of cosmological model. Must match one of the supported types
-        in cosmo_params description.
+        listed in `cosmo_params`.
         
     nwalkers : int, optional (default=250)
         Number of MCMC walkers for the ensemble sampler.
-        More walkers provide better sampling but increase computation time.
-        Must be at least 2 times the number of parameters (2 for this analysis).
+        Must be at least 2 × the number of parameters (2 for this analysis).
+        More walkers increase sampling robustness but also runtime.
         
-    nsteps : int, optional (default=1000)
-        Number of MCMC steps per walker.
-        More steps provide better convergence but increase computation time.
-        Consider burn-in when interpreting results.
+    nsteps : int, optional (default=2000)
+        Number of MCMC steps per walker. Consider discarding a burn-in fraction
+        (e.g., ~3× the integrated autocorrelation time) when summarizing posteriors.
+
+    n_processes : int or None, optional (default=os.cpu_count())
+        Number of parallel worker processes to use. If None, a single process is used.
+        Larger values speed up likelihood evaluations at the cost of CPU usage.
+
+    vesc_error : float, optional (default=30)
+        Per-bin uncertainty (in km/s) assigned to the measured escape-velocity edge
+        in the Gaussian likelihood. This sets the vertical error bars of the
+        binned edge (typically ≈ 20–40 km/s depending on data quality).
+
+    coremin_cut : float, optional (default=0.44)
+        Dimensionless core exclusion radius for interloper removal via the
+        shifting-gapper. Galaxies with r < coremin_cut × R200 are exempt from
+        being flagged as interlopers (prevents over-cleaning the core). For 5
+        radial bins over 0.2–1.0 R200, 0.44 leaves the first bin un-gapped.
+
+    cut : float, optional (default=4500)
+        Line-of-sight velocity clip in km/s used when constructing the phase-space
+        and measuring the edge. Only galaxies with |v_los| < cut enter the edge
+        finding step (guards against extreme outliers).
         
     Returns
     -------
@@ -924,7 +943,7 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
     --------
     >>> cosmo_params = [0.3, 0.7]  # Omega_m, h for FlatLambdaCDM
     >>> cosmo_name = 'FlatLambdaCDM'
-    >>> galaxy_data = np.loadtxt('galaxy_positions.txt')  # Shape (N, 7)
+    >>> galaxy_data = np.loadtxt('galaxy_positions.txt')  # Shape (N, 3)
     >>> cluster_coords = (150.25, -10.75, 0.23)  # RA, Dec, z
     >>> M200_initial = 1e15  # Solar masses, guess for M200 measured via Weak lensing, SZ, X-ray, etc.
     >>> 
@@ -936,7 +955,7 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
     rho_crit = rho_crit_z(cl_z,cosmo_params,cosmo_name).to(u.Msun/u.Mpc**3)
     R200 = (3 * M200 / (200 * 4 * np.pi * rho_crit.value))**(1/3)
     galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z=mass_estimation_preprocessing(cluster_positional_data,galaxy_positional_data,
-                                                       M200, R200, cosmo_params,cosmo_name)
+                                                       M200, R200, vesc_error,coremin_cut, cut, cosmo_params,cosmo_name)
 
     escape_modeler = EscapeVelocityModeling(path_to_calibration=path_to_Zv_calibration)
 
@@ -947,3 +966,6 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
         mass_range_factor=1.5, progress=True
     )
     mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200_err_down,N,cl_z,vesc_data_r,vesc_data_theta,vesc_data,vesc_data_err,R200,galaxy_r, galaxy_v,cosmo_params,cosmo_name)
+    
+if __name__ == "__main__":
+    main()
