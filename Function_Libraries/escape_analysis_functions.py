@@ -813,7 +813,7 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
         
 # main function    
 def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
-         M200,M200_err_up,M200_err_down,cosmo_params,cosmo_name,nwalkers=250,nsteps=1000):
+         M200,M200_err_up,M200_err_down,cosmo_params,cosmo_name,nwalkers=250,nsteps=1000,n_processes=os.cpu_count()):
     """
     Perform escape velocity-based cluster mass estimation using MCMC analysis.
     
@@ -928,7 +928,7 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
     results = run_mcmc_mass_estimation(
         M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err, 
         escape_modeler, cosmo_params, cosmo_name, 
-        nwalkers=nwalkers, nsteps=nsteps, n_processes=os.cpu_count(), 
+        nwalkers=nwalkers, nsteps=nsteps, n_processes=n_processes, 
         mass_range_factor=1.5, progress=True
     )
     mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200_err_down,N,cl_z,vesc_data_r,vesc_data_theta,vesc_data,vesc_data_err,R200,galaxy_r, galaxy_v,cosmo_params,cosmo_name)
