@@ -159,7 +159,7 @@ results = main(
     coremin=0                       # float: optional interloper core inclusion flag
     cut=3500                        # float: optional velocity cut modification flag
 )
-
+```
 ---
 
 ## Reproducibility tips
