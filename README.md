@@ -131,7 +131,7 @@ The $Z_v$ distribution per bin is a **skew-normal** with parameters expressed as
 - **Velocity cut:** $|v_{\rm los}| < 4500$ km/s during construction of the phase space.
 
 ### Errors and likelihood
-- Spectroscopic errors $\sigma_{cz}\sim 30\,\mathrm{km\,s^{-1}}$ are added in quadrature to edge uncertainties. Note that this is defined in mass_estimation_preprocessing (along with all other hyper-parameters and model restrictions).
+- Spectroscopic errors $\sigma_{cz}\sim 30\,\mathrm{km\,s^{-1}}$ are added in quadrature to edge uncertainties. Note that this is defined in mass_estimation_preprocessing (along with all other hyper-parameters and model restrictions). The appropriate spectrocopic error to use can be estimated by measuring the median spectroscopic error in your dataset, and consuluting the corresponding Figure 4 of Rodriguez et al. 2025
 - Likelihood: Gaussian over the 5 radial bins comparing the **down-sampled** edge to the **suppressed** theoretical curve.
 - Inference: `emcee` affine-invariant ensemble sampler on $\log_{10} M_{200}$; report the posterior median and 68% credible interval.
 
