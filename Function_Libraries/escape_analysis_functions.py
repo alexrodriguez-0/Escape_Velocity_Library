@@ -6,9 +6,6 @@ from escape_theory_functions import (
     dehnen_nfwM200_errors,  # Used in v_esc_den_M200
     v_esc_dehnen,           # Used in v_esc_den_M200
     D_A,                    # Used in calculate_projected_quantities and get_edge
-    rho_Dehnen_int,         # Used in r_eq (which is called by dehnen_nfwM200_errors)
-    q_z_function,           # Used in r_eq
-    H_z_function,           # Used in r_eq
     rho_crit_z              # Used in dehnen_nfwM200_errors
 )
 from astropy.coordinates import SkyCoord, angular_separation
@@ -121,7 +118,7 @@ class EscapeVelocityModeling:
         array
             Random samples
         """
-        # Get cdf normalized to maximum 
+        # Get cdf normalized to maximum
         cdf = np.cumsum(f_x) / np.cumsum(f_x).max()
         # Inverse transform using interpolation
         inverse_cdf = interpolate.interp1d(cdf, x)
@@ -268,9 +265,9 @@ class ClusterDataHandler:
                         (databinsort[:,1])[np.int32(np.ceil(databinsort[:,1].size/4.0))]
                     gap = f / (1.349)
                     
-                    if gap < gap_val: 
+                    if gap < gap_val:
                         break
-                    if gap >= 2.0 * gap_prev: 
+                    if gap >= 2.0 * gap_prev:
                         gap = gap_prev
                         
                     databelow = databinsort[databinsort[:,1] <= 0]
@@ -279,11 +276,11 @@ class ClusterDataHandler:
                     gapabove = dataabove[:,1][1:] - dataabove[:,1][:-1]
                     
                     try:
-                        if np.max(gapbelow) >= gap: 
+                        if np.max(gapbelow) >= gap:
                             vgapbelow = np.where(gapbelow >= gap)[0][-1]
-                        else: 
+                        else:
                             vgapbelow = -1
-                        try: 
+                        try:
                             datanew = np.append(datanew, databelow[vgapbelow+1:], axis=0)
                         except:
                             datanew = databelow[vgapbelow+1:]
@@ -291,11 +288,11 @@ class ClusterDataHandler:
                         pass
                         
                     try:
-                        if np.max(gapabove) >= gap: 
+                        if np.max(gapabove) >= gap:
                             vgapabove = np.where(gapabove >= gap)[0][0]
-                        else: 
+                        else:
                             vgapabove = 99999999
-                        try: 
+                        try:
                             datanew = np.append(datanew, dataabove[:vgapabove+1], axis=0)
                         except:
                             datanew = dataabove[:vgapabove+1]
@@ -344,7 +341,7 @@ class ClusterDataHandler:
             Projected distance and line-of-sight velocity
         """
         d_A = D_A(cl_z, cosmo_params, case).value
-        sep = angular_separation(np.radians(cl_ra), np.radians(cl_dec), 
+        sep = angular_separation(np.radians(cl_ra), np.radians(cl_dec),
                                np.radians(gal_ra), np.radians(gal_dec))
 
         R_proj = sep * d_A  # Projected distance in Mpc
@@ -378,7 +375,7 @@ class ClusterDataHandler:
             gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, cosmo_params, case)
         return R_proj, v_los
 
-    def iterate_center(self, gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, 
+    def iterate_center(self, gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
                       R200, min_r, max_r, cut, cosmo_params, case):
         """
         Iterate cluster center determination.
@@ -405,7 +402,7 @@ class ClusterDataHandler:
         tuple
             Updated galaxy coordinates, projected distances, velocities, and count
         """
-        r_proj, v_los = self.get_r_v_proj(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, 
+        r_proj, v_los = self.get_r_v_proj(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
                                          cosmo_params, case)
 
         mask_vlos = np.abs(v_los) < cut
@@ -420,7 +417,7 @@ class ClusterDataHandler:
 
         return gal_ras[w], gal_decs[w], gal_zs[w], r_proj, v_los, N
 
-    def iterate_center_N_times(self, gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, 
+    def iterate_center_N_times(self, gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
                               R200, min_r, max_r, cut, cosmo_params, case):
         """
         Centering algorithm for phase-space data (iterate N=10 times). Ideally the user should check for convergence.
@@ -454,15 +451,15 @@ class ClusterDataHandler:
         for i in range(10):
             if i == 0:
                 gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = \
-                    self.iterate_center(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, 
+                    self.iterate_center(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
                                       R200, min_r, max_r, cut, cosmo_params, case)
                 gal_ras_news.append(np.mean(gal_ras_new))
                 gal_decs_news.append(np.mean(gal_decs_new))
                 gal_zs_news.append(np.mean(gal_zs_new))
             else:
                 gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = \
-                    self.iterate_center(gal_ras, gal_decs, gal_zs, gal_ras_news[-1], 
-                                      gal_decs_news[-1], gal_zs_news[-1], R200, min_r, max_r, 
+                    self.iterate_center(gal_ras, gal_decs, gal_zs, gal_ras_news[-1],
+                                      gal_decs_news[-1], gal_zs_news[-1], R200, min_r, max_r,
                                       cut, cosmo_params, case)
                 gal_ras_news.append(np.mean(gal_ras_new))
                 gal_decs_news.append(np.mean(gal_decs_new))
@@ -556,7 +553,7 @@ class MCMCMassEstimator:
             return -np.inf
         return 0.0
 
-    def lnlike(self, omega, x, y, yerr): 
+    def lnlike(self, omega, x, y, yerr):
         """Log likelihood function."""
         p_theta_array = x
         p_z = np.repeat(self.cl_z, 1)
@@ -587,7 +584,7 @@ class MCMCMassEstimator:
             
         ll = self.lnlike(omega, x, y, yerr)
         if not np.isfinite(ll):
-            return -np.inf  
+            return -np.inf
             
         return lp + ll
 
@@ -614,9 +611,9 @@ def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_dat
     Nbin, gap = 20, 600
     
     # Model restrictions
-    N_min = 50         
+    N_min = 50
     N_max = 1200
-    logM_min = 14.0  
+    logM_min = 14.0
     logM_max= 15.6
     z_min= 0.0
     z_max = 0.7
@@ -647,21 +644,21 @@ def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_dat
 
         vesc_data_theta = vesc_data_theta.to(u.radian).value.reshape(1, bins)
         vesc_data = vesc_data[0]
-        vesc_data_err = np.array([vesc_error for i in range(bins)])    
+        vesc_data_err = np.array([vesc_error for i in range(bins)])
         z_use = np.repeat(cl_z, 1)
         if N<N_min:
             print('Insufficient galaxy data in this range')
         if (N>N_max) or (np.log10(M200)<logM_min) or (np.log10(M200)>logM_max) or (cl_z>z_max):
-            print('Sampling, Mass, and/or z are out of range for the model')    
+            print('Sampling, Mass, and/or z are out of range for the model')
         
         return galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z
     else:
         print('Insufficient galaxy data in this range')
 
 
-def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err, 
-                             escape_modeler, cosmo_params, cosmo_name, 
-                             nwalkers, nsteps, n_processes, 
+def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err,
+                             escape_modeler, cosmo_params, cosmo_name,
+                             nwalkers, nsteps, n_processes,
                              mass_range_factor=1.5, progress=True):
     """
     Run MCMC estimation for cluster mass using escape velocity data.
@@ -701,7 +698,7 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
     --------
     dict : Dictionary containing:
         - 'samples': MCMC samples
-        - 'mean': Mean of posterior
+        - 'median': median of posterior
         - 'one_sig_up': Upper 1-sigma bound
         - 'one_sig_down': Lower 1-sigma bound
         - 'sampler': The emcee sampler object
@@ -723,28 +720,30 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
     
     try:
         # Initialize and run sampler
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, estimator.lnprob, 
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, estimator.lnprob,
                                       args=(vesc_data_theta, vesc_data, vesc_data_err),
                                       pool=pool)
         sampler.run_mcmc(p0, nsteps, progress=progress)
         
         # Extract results
-        chain = sampler.get_chain(flat=True)  # emcee v3
-        burn = int(0.5 * nsteps * nwalkers)
-        samples = chain[burn:, 0]
-        one_sig_down = np.percentile(samples, 33-16.5)
-        mean = np.percentile(samples, 50)
-        one_sig_up = np.percentile(samples, 67+16.5)
+        # Burn-in: discard first half of *steps*
+        burn_steps = int(0.5 * nsteps)
+        flat = sampler.get_chain(discard=burn_steps, flat=True)
+        samples = flat[:, 0]  # log10 M200
+
+        # Central 68% interval
+        one_sig_down, median, one_sig_up = np.quantile(samples, [0.158655, 0.5, 0.841345])
+
         
         # Print results if progress is enabled
         if progress:
-            print('Escape Velocity Mass Estimate:', 
-                  np.round(mean, 2), '+', np.round(one_sig_up-mean, 2), 
-                  '-', np.round(mean-one_sig_down, 2))
+            print('Escape Velocity Mass Estimate:',
+                  np.round(median, 2), '+', np.round(one_sig_up-median, 2),
+                  '-', np.round(median-one_sig_down, 2))
         
         return {
             'samples': samples,
-            'mean': mean,
+            'median': median,
             'one_sig_up': one_sig_up,
             'one_sig_down': one_sig_down,
             'sampler': sampler
@@ -761,9 +760,9 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
         Prepares a Radial Velocity Phase-Space Given the Results of the Mass Constraint
         '''
         # Create mass arrays for both measurements including uncertainties
-        escape_masses_min = 10**(results['mean'] - (results['mean']-results['one_sig_down']))
-        escape_masses_max = 10**(results['mean'] + (results['one_sig_up']-results['mean']))
-        escape_masses_med = 10**results['mean']
+        escape_masses_min = 10**(results['median'] - (results['median']-results['one_sig_down']))
+        escape_masses_max = 10**(results['median'] + (results['one_sig_up']-results['median']))
+        escape_masses_med = 10**results['median']
         wl_masses_min = 10**(np.log10(M200) - M200_err_down)
         wl_masses_max = 10**(np.log10(M200) + M200_err_up)
         wl_masses_med = M200
@@ -779,11 +778,11 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
         plt.fill_between(r_av, -(v_av-v_std), -(v_av+v_std), alpha=0.3, color='r')
         z_use=np.repeat(cl_z,1)
 
-        r_fit_med, v_fit_med = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(escape_masses_med,1), 
+        r_fit_med, v_fit_med = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(escape_masses_med,1),
                                              cosmo_params, cosmo_name)
-        r_fit_min, v_fit_min = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(escape_masses_min,1), 
+        r_fit_min, v_fit_min = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(escape_masses_min,1),
                                              cosmo_params, cosmo_name)
-        r_fit_max, v_fit_max = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(escape_masses_max,1), 
+        r_fit_max, v_fit_max = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(escape_masses_max,1),
                                              cosmo_params, cosmo_name)
         plt.plot(r_fit_med[0]/R200, v_fit_med[0]/Zv_average, c='b', label='Dynamical Fit')
         plt.plot(r_fit_med[0]/R200, -v_fit_med[0]/Zv_average, c='b')
@@ -798,21 +797,21 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
                          alpha=alpha_use, color='b')
 
 
-        r_theory_med, v_theory_med = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(wl_masses_med,1), 
+        r_theory_med, v_theory_med = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(wl_masses_med,1),
                                                   cosmo_params, cosmo_name)
-        r_theory_min, v_theory_min = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(wl_masses_min,1), 
+        r_theory_min, v_theory_min = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(wl_masses_min,1),
                                                    cosmo_params, cosmo_name)
-        r_theory_max, v_theory_max = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(wl_masses_max,1), 
+        r_theory_max, v_theory_max = escape_modeler.v_esc_den_M200(vesc_data_theta, z_use, np.repeat(wl_masses_max,1),
                                                    cosmo_params, cosmo_name)
 
         plt.plot(r_theory_med[0]/R200, v_theory_med[0]/Zv_average, c='g', label='Starting Estimate')
         plt.plot(r_theory_med[0]/R200, -v_theory_med[0]/Zv_average, c='g')
         alpha_use=0.1
-        plt.fill_between(r_theory_med[0]/R200, 
+        plt.fill_between(r_theory_med[0]/R200,
                          v_theory_min[0]/Zv_average,
                          v_theory_max[0]/Zv_average,
                          alpha=alpha_use, color='g')
-        plt.fill_between(r_theory_med[0]/R200, 
+        plt.fill_between(r_theory_med[0]/R200,
                          -v_theory_min[0]/Zv_average,
                          -v_theory_max[0]/Zv_average,
                          alpha=alpha_use, color='g')
@@ -827,7 +826,7 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
         fig.tight_layout()
         plt.show()
         
-# main function    
+# main function
 def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
          M200,M200_err_up,M200_err_down,cosmo_params,cosmo_name,nwalkers=250,nsteps=1000,n_processes=os.cpu_count()):
     """
@@ -942,9 +941,9 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
     escape_modeler = EscapeVelocityModeling(path_to_calibration=path_to_Zv_calibration)
 
     results = run_mcmc_mass_estimation(
-        M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err, 
-        escape_modeler, cosmo_params, cosmo_name, 
-        nwalkers=nwalkers, nsteps=nsteps, n_processes=n_processes, 
+        M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err,
+        escape_modeler, cosmo_params, cosmo_name,
+        nwalkers=nwalkers, nsteps=nsteps, n_processes=n_processes,
         mass_range_factor=1.5, progress=True
     )
     mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200_err_down,N,cl_z,vesc_data_r,vesc_data_theta,vesc_data,vesc_data_err,R200,galaxy_r, galaxy_v,cosmo_params,cosmo_name)
