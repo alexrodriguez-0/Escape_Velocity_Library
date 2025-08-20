@@ -176,9 +176,10 @@ class EscapeVelocityModeling:
         M_use = np.round(M_use, 1)
         z_use = self.z_round(z_use)
         
-        os.chdir(self.path_to_calibration)
-        with open('Zv_fits_z_{:.2f}_M200_{:.1f}.pkl'.format(z_use, M_use), 'rb') as f:
+        calib_file = os.path.join(self.path_to_calibration, f"Zv_fits_z_{z_use:.2f}_M200_{M_use:.1f}.pkl")
+        with open(calib_file, "rb") as f:
             data_use, num_mem_meds = pickle.load(f)
+
 
         xmin, xmax = 0.1, 10
         all_rand_Zv = []
@@ -573,7 +574,7 @@ class MCMCMassEstimator:
             return np.nan_to_num(-0.5 * (np.sum((y - ymodel)**2 * inv_sigma2)))
 
         except (TypeError, ValueError, RuntimeError) as e:
-            print(f"Rejected M200={10**omega[0]:.2e} due to: {str(e)}")
+            #print(f"Rejected M200={10**omega[0]:.2e} due to: {str(e)}")
             return -np.inf
 
     def lnprob(self, omega, x, y, yerr):
@@ -927,7 +928,7 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
     results = run_mcmc_mass_estimation(
         M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err, 
         escape_modeler, cosmo_params, cosmo_name, 
-        nwalkers=nwalkers, nsteps=nsteps, n_processes=30, 
+        nwalkers=nwalkers, nsteps=nsteps, n_processes=os.cpu_count(), 
         mass_range_factor=1.5, progress=True
     )
     mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200_err_down,N,cl_z,vesc_data_r,vesc_data_theta,vesc_data,vesc_data_err,R200,galaxy_r, galaxy_v,cosmo_params,cosmo_name)
