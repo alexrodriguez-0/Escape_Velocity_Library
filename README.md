@@ -13,7 +13,7 @@ Escape_Velocity_Library/
 ├── AGAMA_Zv_calibration/              # Precomputed Z_v calibration (grid in redshift, mass, sampling)
 │   └── Zv_fits_z_0.01_M200_14.0.pkl   # Example filename pattern (see “Z_v calibration”)
 ├── Example/
-│   ├── run_example.py                  # Minimal end-to-end example (configure paths, run mass inference)
+│   ├── run_example.ipynb                  # Minimal end-to-end example (configure paths, run mass inference)
 │   └── Rines_galaxy_data.txt           # Example input: RAh RAm RAs DEd DEm DEs redshift
 └── Function/
     └── Libraries/
@@ -55,25 +55,33 @@ pip install numpy scipy pandas astropy emcee matplotlib
 
 ## Quick start (example)
 
-1. Edit `Example/run_example.py` to set:
-   - `path_to_Zv_calibration = '/path/to/Escape_Velocity_Library/AGAMA_Zv_calibration'`
-   - `path_to_galaxy_data = '/path/to/Escape_Velocity_Library/Example/'`
-   - `cluster_positional_data = (cl_ra_deg, cl_dec_deg, cl_z)`
-   - Initial mass guess/prior widths: `M200`, `M200_err_up`, `M200_err_down` (log-space dex widths)
-   - Cosmology: `cosmo_name='FlatLambdaCDM'`, `cosmo_params=[Omega_m, h]` (e.g., `[0.3, 0.7]`)
+1. Open the example notebook
+    ```bash
+       # Either:
+       jupyter lab Example/run_example.ipynb
+       # or:
+       jupyter notebook Example/run_example.ipynb
 
-2. **Input format** for `Rines_galaxy_data.txt` (one galaxy per line):
-   ```
-   RA  DEC  redshift
-   ```
-   RA and Dec are in decimal degrees. Redshift is dimensionless $z$.
+2. In the first Configuration cell, set:
 
-3. Run:
-   ```bash
-   python Example/run_example.py
-   ```
+path_to_Zv_calibration = '/path/to/Escape_Velocity_Library/AGAMA_Zv_calibration'
+
+path_to_galaxy_data = '/path/to/Escape_Velocity_Library/Example/'
+
+cluster_positional_data = (cl_ra_deg, cl_dec_deg, cl_z)
+
+Initial mass guess / prior widths (dex): M200, M200_err_up, M200_err_down
+
+Cosmology: cosmo_name='FlatLambdaCDM', cosmo_params=[Omega_m, h] (e.g. [0.3, 0.7])
+
+3. Input format for Rines_galaxy_data.txt (one galaxy per line):
+   ```python
+   RA_deg  DEC_deg  redshift
+   RA/DEC are decimal degrees; redshift is dimensionless z.
+5. Run the notebook: from the menu choose Kernel → Restart & Run All (or Run → Run All Cells).
 
 **Outputs**
+- Posterior $M_{200}$ distribution.
 - Phase-space plot $v_{\rm los}$ vs $r_\perp/r_{200}$ with: interlopers removed, measured **down-sampled** edge, **suppressed** theoretical escape profile, and uncertainty bands.
 - Posterior summary for $M_{200}$ (median and 68% credible interval).
 
