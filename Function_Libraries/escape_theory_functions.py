@@ -877,7 +877,7 @@ def q_z_function(z,cosmo_params,case):
         return q
     
     elif case == 'natural':
-        q_z, H_z, little_h = comso_params
+        q_z, H_z, little_h = cosmo_params
         return q_z
     
 def z_trans(cosmo_params, name):
