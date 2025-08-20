@@ -6,6 +6,7 @@ from multiprocessing import Process, Queue, Pool
 import emcee
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
+import sys
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -18,7 +19,7 @@ plt.rc('font', size=24)
 path_to_function_libraries='/your_path_to/Escape_Library/Function_Libraries/'
 path_to_Zv_calibration='/your_path_to/AGAMA_Zv_calibration'
 
-os.chdir(path_to_function_libraries)
+sys.path.insert(0, path_to_function_libraries)
 from escape_theory_functions import dehnen_nfwM200_errors, rho_crit_z
 from escape_analysis_functions import main
 
@@ -54,8 +55,8 @@ cosmo_params = cosmology(cosmo)
 # Load galaxy data
 # galaxy_data is assumed to have this format: RAh, RAm, RAs, DEd, DEm, DEs, redshift
 path_to_galaxy_data = '/your_path_to/Escape_Library/Example/'
-os.chdir(path_to_galaxy_data)
-galaxy_positional_data = np.genfromtxt('Rines_galaxy_data.txt')
+galaxy_positional_data = np.genfromtxt(os.path.join(path_to_galaxy_data, 'Rines_galaxy_data.txt'))
+
 
 # Load cluster data
 #cl_ra: Cluster right ascension in decimal degrees
