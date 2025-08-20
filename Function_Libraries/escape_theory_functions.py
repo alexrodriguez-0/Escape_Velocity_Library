@@ -32,14 +32,65 @@ c = 299792.458 # km/s
 
 #total mass of a halo from Retana-Montenegro et al. 2012; f-la (8) in terms of masses of the Sun. [Msun]
 def M_total(rho_0, h, n):
+    """
+    Compute the total mass normalization for an Einasto profile.
+    
+    Parameters
+    ----------
+    rho_0 : float
+        Density scale [M_sun / Mpc^3].
+    h : float
+        Scale radius [Mpc].
+    n : float
+        Einasto shape parameter.
+    
+    Returns
+    -------
+    float
+        Total mass 4π ρ0 h^3 n Γ(3n) [M_sun].
+    
+    Notes
+    -----
+    Formula from Retana-Montenegro et al. (2012), Eq. (8).
+    """
     return 4.*np.pi*rho_0*(h**3.)*n*ss.gamma(3.*n)
 
 def M_einasto(r,rho_0, h, n):
+    """
+    Enclosed mass M(<r) for an Einasto profile.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    rho_0, h, n : float
+        Einasto parameters (density scale, radius scale, shape).
+    
+    Returns
+    -------
+    ndarray
+        Enclosed mass at each `r` [M_sun].
+    """
     part1 = np.array((r/h)**(1./n))
     return np.array(M_total(rho_0, h, n))*(1. - (ss.gammaincc(3.*n, part1)/ss.gamma(3.*n)))
               
 #define Einasto potential profile [(km/s)^2] need to multiply by 3.24077929e-29 to keep units correct
 def phi_einasto(r,rho_0,h,n):
+    """
+    Gravitational potential Ψ(r) for an Einasto halo.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    rho_0, h, n : float
+        Einasto parameters.
+    
+    Returns
+    -------
+    ndarray
+        Potential Ψ(r) in [(km/s)^2].
+    """
     G_newton = astroc.G.to( u.Mpc *  u.km**2 / u.s**2 / u.solMass).value #Mpc km2/s^2 Msol
     part1 = np.array((r/h)**(1./n))
     part2 = np.array(r/h)
@@ -47,14 +98,92 @@ def phi_einasto(r,rho_0,h,n):
     return -G_newton*part3*(1. - ss.gammaincc(3.*n, part1) +  part2*ss.gamma(2.*n)*ss.gammaincc(2.*n, part1)/ss.gamma(3.*n) )
 
 def phi_nfw(r,rho_s,r_s):
+    """
+    Gravitational potential Ψ(r) for an NFW halo.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    rho_s : float
+        NFW characteristic density [M_sun / Mpc^3].
+    r_s : float
+        NFW scale radius [Mpc].
+    
+    Returns
+    -------
+    ndarray
+        Potential Ψ(r) in [(km/s)^2].
+    """
     G_newton = astroc.G.to( u.Mpc *  u.km**2 / u.s**2 / u.solMass).value #Mpc km2/s^2 Msol
     return -4*np.pi*G_newton*rho_s*(r_s**2.0)*np.log(1+r/r_s)/(r/r_s)
 
 def phi_dehnen(r,mass_0, r_s, gamma):
+    """
+    Gravitational potential Ψ(r) for a Dehnen profile.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    mass_0 : float
+        Total mass normalization [M_sun].
+    r_s : float
+        Scale radius [Mpc].
+    gamma : float
+        Inner slope parameter.
+    
+    Returns
+    -------
+    ndarray
+        Potential Ψ(r) in [(km/s)^2].
+    """
     G_newton = astroc.G.to( u.Mpc *  u.km**2 / u.s**2 / u.solMass).value #Mpc km2/s^2 Msol
     return -G_newton*mass_0/(r_s)*(1.0/(2.0-gamma))*(1.0-(r/(r+r_s))**(2.0-gamma))
 
 def v_esc_dehnen(theta,z,mass_0, r_s, gamma,cosmo_params, case):
+    """
+    Escape velocity profile v_esc(r) for a Dehnen halo in an accelerating universe.
+    
+            Parameters
+            ----------
+            theta : array_like
+                Angular separations [radians]; physical radius is r = θ × D_A(z).
+            z : array_like
+                Redshift(s) of the phase-space slice.
+            Other profile/cosmology parameters : ...
+                See below.
+            cosmo_params : tuple
+                Cosmology parameters, format depends on `case`.
+            case : str
+                One of 'Flatw0waCDM', 'FlatwCDM', 'wCDM', 'LambdaCDM', 'FlatLambdaCDM', or 'natural'.
+    
+            Returns
+            -------
+            r, v_esc : (ndarray, ndarray)
+                Radii r [Mpc] and escape speeds v_esc(r) [km/s].
+    
+            Notes
+            -----
+            Implements the effective-potential escape relation
+    
+                v_esc^2(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z) H^2(z) [r^2 - r_eq^2],
+    
+            with r_eq the radius where inward gravity balances the outward cosmological term.
+            For non-accelerating cases (q ≥ 0) this reduces to v_esc^2(r) = -2 Ψ(r).
+             Uses internally computed q(z) and H(z).
+    
+            Cosmology
+    ---------
+    The argument `case` selects the background model and determines the expected
+    order of `cosmo_params`:
+    - 'Flatw0waCDM'  -> (Omega_M, w0, wa, h)
+    - 'FlatwCDM'     -> (Omega_M, w, h)
+    - 'wCDM'         -> (Omega_M, Omega_DE, w, h)
+    - 'LambdaCDM'    -> (Omega_M, Omega_DE, h)
+    - 'FlatLambdaCDM'-> (Omega_M, h)   (implies Omega_DE = 1 - Omega_M)
+    - 'natural'      -> (q(z), H(z) [km/s/Mpc], h)  # bypasses internal q/H calculations
+    """
     if case == 'Flatw0waCDM':
         omega_M, w0, wa, little_h =cosmo_params 
     elif case == 'FlatwCDM':
@@ -97,6 +226,48 @@ def v_esc_dehnen(theta,z,mass_0, r_s, gamma,cosmo_params, case):
 
 
 def v_esc_einasto(theta,z,rho_0,h,n,cosmo_params, case):
+    """
+    Escape velocity profile v_esc(r) for a Einasto halo in an accelerating universe.
+    
+            Parameters
+            ----------
+            theta : array_like
+                Angular separations [radians]; physical radius is r = θ × D_A(z).
+            z : array_like
+                Redshift(s) of the phase-space slice.
+            Other profile/cosmology parameters : ...
+                See below.
+            cosmo_params : tuple
+                Cosmology parameters, format depends on `case`.
+            case : str
+                One of 'Flatw0waCDM', 'FlatwCDM', 'wCDM', 'LambdaCDM', 'FlatLambdaCDM', or 'natural'.
+    
+            Returns
+            -------
+            r, v_esc : (ndarray, ndarray)
+                Radii r [Mpc] and escape speeds v_esc(r) [km/s].
+    
+            Notes
+            -----
+            Implements the effective-potential escape relation
+    
+                v_esc^2(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z) H^2(z) [r^2 - r_eq^2],
+    
+            with r_eq the radius where inward gravity balances the outward cosmological term.
+            For non-accelerating cases (q ≥ 0) this reduces to v_esc^2(r) = -2 Ψ(r).
+             Uses internally computed q(z) and H(z).
+    
+            Cosmology
+    ---------
+    The argument `case` selects the background model and determines the expected
+    order of `cosmo_params`:
+    - 'Flatw0waCDM'  -> (Omega_M, w0, wa, h)
+    - 'FlatwCDM'     -> (Omega_M, w, h)
+    - 'wCDM'         -> (Omega_M, Omega_DE, w, h)
+    - 'LambdaCDM'    -> (Omega_M, Omega_DE, h)
+    - 'FlatLambdaCDM'-> (Omega_M, h)   (implies Omega_DE = 1 - Omega_M)
+    - 'natural'      -> (q(z), H(z) [km/s/Mpc], h)  # bypasses internal q/H calculations
+    """
     if case == 'Flatw0waCDM':
         omega_M, w0, wa, little_h =cosmo_params 
     elif case == 'FlatwCDM':
@@ -138,6 +309,48 @@ def v_esc_einasto(theta,z,rho_0,h,n,cosmo_params, case):
 
 
 def v_esc_NFW_M200(theta,z,M200,cosmo_params,case):
+    """
+    Escape velocity profile v_esc(r) for a NFW (c200 via concentration relation) halo in an accelerating universe.
+    
+            Parameters
+            ----------
+            theta : array_like
+                Angular separations [radians]; physical radius is r = θ × D_A(z).
+            z : array_like
+                Redshift(s) of the phase-space slice.
+            Other profile/cosmology parameters : ...
+                See below.
+            cosmo_params : tuple
+                Cosmology parameters, format depends on `case`.
+            case : str
+                One of 'Flatw0waCDM', 'FlatwCDM', 'wCDM', 'LambdaCDM', 'FlatLambdaCDM', or 'natural'.
+    
+            Returns
+            -------
+            r, v_esc : (ndarray, ndarray)
+                Radii r [Mpc] and escape speeds v_esc(r) [km/s].
+    
+            Notes
+            -----
+            Implements the effective-potential escape relation
+    
+                v_esc^2(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z) H^2(z) [r^2 - r_eq^2],
+    
+            with r_eq the radius where inward gravity balances the outward cosmological term.
+            For non-accelerating cases (q ≥ 0) this reduces to v_esc^2(r) = -2 Ψ(r).
+             Uses internally computed q(z) and H(z). Radii r = θ D_A(z); if q(z) < 0 the equality radius r_eq is included.
+    
+            Cosmology
+    ---------
+    The argument `case` selects the background model and determines the expected
+    order of `cosmo_params`:
+    - 'Flatw0waCDM'  -> (Omega_M, w0, wa, h)
+    - 'FlatwCDM'     -> (Omega_M, w, h)
+    - 'wCDM'         -> (Omega_M, Omega_DE, w, h)
+    - 'LambdaCDM'    -> (Omega_M, Omega_DE, h)
+    - 'FlatLambdaCDM'-> (Omega_M, h)   (implies Omega_DE = 1 - Omega_M)
+    - 'natural'      -> (q(z), H(z) [km/s/Mpc], h)  # bypasses internal q/H calculations
+    """
     num_phases = 1
     for i in range(num_phases):
         H_z = H_z_function(z[i],cosmo_params,case).value
@@ -173,6 +386,49 @@ def v_esc_NFW_M200(theta,z,M200,cosmo_params,case):
 
 
 def v_esc_NFW(theta,z,M200,C200,cosmo_params,case):
+    """
+    Escape velocity profile v_esc(r) for a NFW (with provided M200 and C200) halo in an accelerating universe.
+    
+            Parameters
+            ----------
+            theta : array_like
+                Angular separations [radians]; physical radius is r = θ × D_A(z).
+            z : array_like
+                Redshift(s) of the phase-space slice.
+            Other profile/cosmology parameters : ...
+                See below.
+            cosmo_params : tuple
+                Cosmology parameters, format depends on `case`.
+            case : str
+                One of 'Flatw0waCDM', 'FlatwCDM', 'wCDM', 'LambdaCDM', 'FlatLambdaCDM', or 'natural'.
+    
+            Returns
+            -------
+            r, v_esc : (ndarray, ndarray)
+                Radii r [Mpc] and escape speeds v_esc(r) [km/s].
+    
+            Notes
+            -----
+            Implements the effective-potential escape relation
+    
+                v_esc^2(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z) H^2(z) [r^2 - r_eq^2],
+    
+            with r_eq the radius where inward gravity balances the outward cosmological term.
+            For non-accelerating cases (q ≥ 0) this reduces to v_esc^2(r) = -2 Ψ(r).
+             Uses internally computed q(z) and H(z). Radii r = θ D_A(z); if q(z) < 0 the equality radius r_eq is included.
+    
+    
+            Cosmology
+    ---------
+    The argument `case` selects the background model and determines the expected
+    order of `cosmo_params`:
+    - 'Flatw0waCDM'  -> (Omega_M, w0, wa, h)
+    - 'FlatwCDM'     -> (Omega_M, w, h)
+    - 'wCDM'         -> (Omega_M, Omega_DE, w, h)
+    - 'LambdaCDM'    -> (Omega_M, Omega_DE, h)
+    - 'FlatLambdaCDM'-> (Omega_M, h)   (implies Omega_DE = 1 - Omega_M)
+    - 'natural'      -> (q(z), H(z) [km/s/Mpc], h)  # bypasses internal q/H calculations
+    """
     num_phases = 1
     for i in range(num_phases):
         H_z = H_z_function(z[i],cosmo_params,case).value
@@ -208,6 +464,49 @@ def v_esc_NFW(theta,z,M200,C200,cosmo_params,case):
 
 
 def v_esc_NFW_M200_qH2(theta,z,M200,qH2,cosmo_params,case):
+    """
+    Escape velocity profile v_esc(r) for a NFW (with external qH2) halo in an accelerating universe.
+    
+            Parameters
+            ----------
+            theta : array_like
+                Angular separations [radians]; physical radius is r = θ × D_A(z).
+            z : array_like
+                Redshift(s) of the phase-space slice.
+            Other profile/cosmology parameters : ...
+                See below.
+            cosmo_params : tuple
+                Cosmology parameters, format depends on `case`.
+            case : str
+                One of 'Flatw0waCDM', 'FlatwCDM', 'wCDM', 'LambdaCDM', 'FlatLambdaCDM', or 'natural'.
+    
+            Returns
+            -------
+            r, v_esc : (ndarray, ndarray)
+                Radii r [Mpc] and escape speeds v_esc(r) [km/s].
+    
+            Notes
+            -----
+            Implements the effective-potential escape relation
+    
+                v_esc^2(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z) H^2(z) [r^2 - r_eq^2],
+    
+            with r_eq the radius where inward gravity balances the outward cosmological term.
+            For non-accelerating cases (q ≥ 0) this reduces to v_esc^2(r) = -2 Ψ(r).
+             Uses provided qH2 ≡ q(z)H^2(z).
+    
+    
+            Cosmology
+    ---------
+    The argument `case` selects the background model and determines the expected
+    order of `cosmo_params`:
+    - 'Flatw0waCDM'  -> (Omega_M, w0, wa, h)
+    - 'FlatwCDM'     -> (Omega_M, w, h)
+    - 'wCDM'         -> (Omega_M, Omega_DE, w, h)
+    - 'LambdaCDM'    -> (Omega_M, Omega_DE, h)
+    - 'FlatLambdaCDM'-> (Omega_M, h)   (implies Omega_DE = 1 - Omega_M)
+    - 'natural'      -> (q(z), H(z) [km/s/Mpc], h)  # bypasses internal q/H calculations
+    """
     num_phases = 1
     for i in range(num_phases):
         r = theta[i] * D_A(z[i],cosmo_params,case).value
@@ -239,6 +538,48 @@ def v_esc_NFW_M200_qH2(theta,z,M200,qH2,cosmo_params,case):
 
 
 def v_esc_NFWs(theta,z, rho_s, r_s,cosmo_params,case):
+    """
+    Escape velocity profile v_esc(r) for a NFW (with ρs and rs) halo in an accelerating universe.
+    
+            Parameters
+            ----------
+            theta : array_like
+                Angular separations [radians]; physical radius is r = θ × D_A(z).
+            z : array_like
+                Redshift(s) of the phase-space slice.
+            Other profile/cosmology parameters : ...
+                See below.
+            cosmo_params : tuple
+                Cosmology parameters, format depends on `case`.
+            case : str
+                One of 'Flatw0waCDM', 'FlatwCDM', 'wCDM', 'LambdaCDM', 'FlatLambdaCDM', or 'natural'.
+    
+            Returns
+            -------
+            r, v_esc : (ndarray, ndarray)
+                Radii r [Mpc] and escape speeds v_esc(r) [km/s].
+    
+            Notes
+            -----
+            Implements the effective-potential escape relation
+    
+                v_esc^2(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z) H^2(z) [r^2 - r_eq^2],
+    
+            with r_eq the radius where inward gravity balances the outward cosmological term.
+            For non-accelerating cases (q ≥ 0) this reduces to v_esc^2(r) = -2 Ψ(r).
+             Uses internally computed q(z) and H(z).
+    
+            Cosmology
+    ---------
+    The argument `case` selects the background model and determines the expected
+    order of `cosmo_params`:
+    - 'Flatw0waCDM'  -> (Omega_M, w0, wa, h)
+    - 'FlatwCDM'     -> (Omega_M, w, h)
+    - 'wCDM'         -> (Omega_M, Omega_DE, w, h)
+    - 'LambdaCDM'    -> (Omega_M, Omega_DE, h)
+    - 'FlatLambdaCDM'-> (Omega_M, h)   (implies Omega_DE = 1 - Omega_M)
+    - 'natural'      -> (q(z), H(z) [km/s/Mpc], h)  # bypasses internal q/H calculations
+    """
     num_phases = 1
     r = np.linspace(0.01,10.0,10).round(3) 
     r_interp = np.linspace(0.01,10.0,100).round(3)    
@@ -280,6 +621,49 @@ def v_esc_NFWs(theta,z, rho_s, r_s,cosmo_params,case):
 
 
 def v_esc_NFWs_qH2(theta,z,M200, rho_s, r_s,qH2,cosmo_params,case):
+    """
+    Escape velocity profile v_esc(r) for a NFW (with ρs, rs and external qH2) halo in an accelerating universe.
+    
+            Parameters
+            ----------
+            theta : array_like
+                Angular separations [radians]; physical radius is r = θ × D_A(z).
+            z : array_like
+                Redshift(s) of the phase-space slice.
+            Other profile/cosmology parameters : ...
+                See below.
+            cosmo_params : tuple
+                Cosmology parameters, format depends on `case`.
+            case : str
+                One of 'Flatw0waCDM', 'FlatwCDM', 'wCDM', 'LambdaCDM', 'FlatLambdaCDM', or 'natural'.
+    
+            Returns
+            -------
+            r, v_esc : (ndarray, ndarray)
+                Radii r [Mpc] and escape speeds v_esc(r) [km/s].
+    
+            Notes
+            -----
+            Implements the effective-potential escape relation
+    
+                v_esc^2(r) = -2[Ψ(r) - Ψ(r_eq)] - q(z) H^2(z) [r^2 - r_eq^2],
+    
+            with r_eq the radius where inward gravity balances the outward cosmological term.
+            For non-accelerating cases (q ≥ 0) this reduces to v_esc^2(r) = -2 Ψ(r).
+             Uses provided qH2 ≡ q(z)H^2(z).
+    
+    
+            Cosmology
+    ---------
+    The argument `case` selects the background model and determines the expected
+    order of `cosmo_params`:
+    - 'Flatw0waCDM'  -> (Omega_M, w0, wa, h)
+    - 'FlatwCDM'     -> (Omega_M, w, h)
+    - 'wCDM'         -> (Omega_M, Omega_DE, w, h)
+    - 'LambdaCDM'    -> (Omega_M, Omega_DE, h)
+    - 'FlatLambdaCDM'-> (Omega_M, h)   (implies Omega_DE = 1 - Omega_M)
+    - 'natural'      -> (q(z), H(z) [km/s/Mpc], h)  # bypasses internal q/H calculations
+    """
     r = theta * D_A(z,cosmo_params,case).value
     Mtot = M200
 
@@ -302,18 +686,22 @@ def v_esc_NFWs_qH2(theta,z,M200, rho_s, r_s,qH2,cosmo_params,case):
 """""""""""""""""""""""""""""""""""""""""""""
 """""""""""""""""""""""""""""""""""""""""""""
 def D_A(z_c,cosmo_params,case):
-    """ 
-    Returns angular diameter distance in Mpc for all three cosmological cases
-    as a function of redshift (z_c) for five cases corresponding to different 
-    sets of cosmological parameters:
+    """
+    Angular diameter distance D_A(z).
     
-    I)     'FlatLambdaCDM' takes in cosmo_params = w, omega_M
-    II)    'wCDM' takes in cosmo_params = w0, wa, omega_M
-    III)   'LambdaCDM'
-    IV)    'FlatwCDM'
-    V)     'Flatw0waCDM'
-    VI_    'natural'
-    NOTE: 'wCDM' assumes the CPL parametrization of dark energy
+    Parameters
+    ----------
+    z_c : float
+        Redshift.
+    cosmo_params : tuple
+        Cosmology parameters (see `q_z_function` docstring for formats).
+    case : str
+        Cosmology label.
+    
+    Returns
+    -------
+    astropy.units.Quantity
+        D_A in Mpc.
     """
 
     if case == 'FlatLambdaCDM':
@@ -368,20 +756,25 @@ def D_A(z_c,cosmo_params,case):
 
 def concentration_meta(mass,redshift,cosmo_params,case):
     """
-    input m200 & cosmology --> c200
-    (concentration relation used in Dutton 2014)
-    https://academic.oup.com/mnras/article/441/4/3359/1209689
-
-    NOTE: input masses must be in same cosmology as little_h listed
-    and in units of Msun
-    I)     'FlatLambdaCDM' takes in cosmo_params = w, omega_M
-    II)    'wCDM' takes in cosmo_params = w0, wa, omega_M
-    III)   'LambdaCDM'
-    IV)    'FlatwCDM'
-    V)     'Flatw0waCDM'
-    VI)    'natural'
-    NOTE: 'wCDM' assumes the CPL parametrization of dark energy
-
+    Mass–concentration relation c_200(M_200, z).
+    
+    Parameters
+    ----------
+    mass : float
+        M_200 [M_sun].
+    redshift : float
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    float
+        Concentration c_200.
+    
+    Notes
+    -----
+    Follows Duffy et al. (2008) style parametrization.
     """
     if case == 'Flatw0waCDM':
         omega_M, w0, wa, little_h =cosmo_params 
@@ -415,18 +808,26 @@ def concentration_meta(mass,redshift,cosmo_params,case):
     
 def q_z_function(z,cosmo_params,case):
 
-    """ 
-    Returns the deceleration parameter as a function of redshift (z_c) for three cases
-    corresponding to different sets of cosmological parameters:
+    """
+    Deceleration parameter q(z).
     
-    I)     'FlatLambdaCDM' takes in cosmo_params = w, omega_M
-    II)    'wCDM' takes in cosmo_params = w0, wa, omega_M
-    III)   'LambdaCDM'
-    IV)    'FlatwCDM'
-    V)     'Flatw0waCDM'
-    VI)    'natural'
-    NOTE: 'wCDM' assumes the CPL parametrization of dark energy
-
+    Parameters
+    ----------
+    z : array_like or float
+        Redshift.
+    cosmo_params : tuple
+        Cosmology parameters.
+    case : str
+        Cosmology label as in `D_A`.
+    
+    Returns
+    -------
+    float or ndarray
+        q(z).
+    
+    Notes
+    -----
+    Computes q(z) from Ω_M(z), Ω_DE(z), and (w0, wa) or w, depending on `case`.
     """
     if case == 'Flatw0waCDM':
         omega_M, w0, wa, little_h =cosmo_params 
@@ -481,9 +882,19 @@ def q_z_function(z,cosmo_params,case):
     
 def z_trans(cosmo_params, name):
     """
-    Returns redshift at which q_z drops to zero.
+    Redshift of acceleration transition z_trans where q(z_trans) = 0.
     
-    cosmology -> An astropy cosmology object.
+    Parameters
+    ----------
+    cosmo_params : tuple
+        Cosmology parameters.
+    name : str
+        Cosmology label.
+    
+    Returns
+    -------
+    float
+        Redshift at which the universe transitions from deceleration to acceleration.
     """
         
     redshift_array= np.arange(0,1.4,1e-7)         
@@ -495,6 +906,28 @@ def z_trans(cosmo_params, name):
 
 def r_eq(z_val,M200_val,cosmo_params,case):
 
+    """
+    Equality radius r_eq for a halo of mass M_200 at redshift z.
+    
+    Parameters
+    ----------
+    z_val : float
+        Redshift.
+    M200_val : float
+        Mass M_200 [M_sun].
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    astropy.units.Quantity
+        r_eq in Mpc.
+    
+    Notes
+    -----
+    r_eq ≡ ( G M / |q(z)| H^2(z) )^(1/3), i.e. where inward gravity balances the outward
+    cosmological term.
+    """
     M200,R200, conc, mass_0, r_s,gamma, sigma_mass_0, sigma_r_s, sigma_gamma=dehnen_nfwM200_errors(M200_val,z_val,cosmo_params,case)
 
 
@@ -515,8 +948,21 @@ def r_eq(z_val,M200_val,cosmo_params,case):
 
 def r_eq_qH2(z,M,qH2):
     """
-    Returns the  equivalence radius in Mpc for all cosmology cases
-
+    Equality radius r_eq using a supplied qH2 = q(z) H^2(z).
+    
+    Parameters
+    ----------
+    z : float
+        Redshift (unused except for consistency of interfaces).
+    M : float
+        Mass [M_sun].
+    qH2 : float
+        Value of q(z) H^2(z) [1/Mpc^2] in (km/s)^2/Mpc^2 units.
+    
+    Returns
+    -------
+    astropy.units.Quantity
+        r_eq in Mpc.
     """
     G_newton = astroc.G.to( u.Mpc *  u.km**2 / u.s**2 / u.solMass) #Mpc km2/s^2 kg
     r_eq_cubed = -((G_newton*M) / (qH2)) #Mpc ^3
@@ -526,16 +972,19 @@ def r_eq_qH2(z,M,qH2):
 
 def H_z_function(z,cosmo_params,case):
     """
-    Returns the Hubble parameter as a function of redshift (z_c) for three cases
-    corresponding to different sets of cosmological parameters:
+    Hubble parameter H(z).
     
-    I)     'FlatLambdaCDM' takes in cosmo_params = w, omega_M
-    II)    'wCDM' takes in cosmo_params = w0, wa, omega_M
-    III)   'LambdaCDM'
-    IV)    'FlatwCDM'
-    V)     'Flatw0waCDM'
-    VI)    'natural'
-    NOTE: 'wCDM' assumes the CPL parametrization of dark energy
+    Parameters
+    ----------
+    z : float or array_like
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    astropy.units.Quantity
+        H(z) in km s^-1 Mpc^-1.
     """
 
     if case == 'Flatw0waCDM':
@@ -583,6 +1032,21 @@ def H_z_function(z,cosmo_params,case):
         return H_z *u.km / u.s / u.Mpc
 
 def rho_crit_z(z,cosmo_params,case):
+    """
+    Critical density ρ_crit(z).
+    
+    Parameters
+    ----------
+    z : float
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    astropy.units.Quantity
+        ρ_crit(z) in M_sun / Mpc^3.
+    """
     if case == 'Flatw0waCDM':
         omega_M, w0, wa, little_h = cosmo_params
     elif case == 'FlatwCDM':
@@ -619,21 +1083,41 @@ def rho_crit_z(z,cosmo_params,case):
 ###Nominal NFW Density Profile###
 def rhos_nfw(r,rho_s,r_s):
     """
-    Radial rho NFW 
-    INPUT: r is radial in [Mpc]
-           rho_s is the scale density Msol/Mpc^3
-           r_s is the scale radius (Mpc)
-    OUTPUT:  Msun/Mpc^3
+    Helper for NFW density * r^2 integrand used in mass/fit calculations.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    rho_s : float
+        NFW characteristic density [M_sun / Mpc^3].
+    r_s : float
+        Scale radius [Mpc].
+    
+    Returns
+    -------
+    ndarray
+        r^2 ρ_NFW(r).
     """
     return rho_s / ( (r/r_s) *  (1+ r/r_s)**2.  )
 
 def rhos_nfw_int(r,rho_s,r_s):
     """
-    Radial r^2*rho NFW integrand for Mass measurement
-    INPUT: r is radial in [Mpc]
-           rho_s is the scale density Msol/Mpc^3
-           r_s is the scale radius (Mpc)
-    OUTPUT:  Msun/Mpc^3
+    Helper for NFW density * r^2 integrand used in mass/fit calculations.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    rho_s : float
+        NFW characteristic density [M_sun / Mpc^3].
+    r_s : float
+        Scale radius [Mpc].
+    
+    Returns
+    -------
+    ndarray
+        r^2 ρ_NFW(r).
     """
     return r**2 * rho_s / ( (r/r_s) *  (1+ r/r_s)**2.  )
 
@@ -641,12 +1125,23 @@ def rhos_nfw_int(r,rho_s,r_s):
 def rho_nfw_m200(r,m200,z,cosmo_params,case):
     
     """
-    Radial rho NFW 
-    INPUT: r is radial in [Mpc]
-           m200 is the mass inside r200 (Msol)
-           z is the redshift
-           cosmology is an astropy object
-    OUTPUT:  Msun/Mpc^3
+    NFW density (and r^2-weighted integrand) given M_200 and z.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    m200 : float
+        M_200 [M_sun].
+    z : float
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    ndarray
+        ρ_NFW(r) [M_sun / Mpc^3] or r^2 ρ_NFW(r) depending on the function.
     """
     rho_crit = rho_crit_z(z,cosmo_params,case)
 #    rho_crit = rho_crit.to(u.solMass / u.Mpc**3)
@@ -661,12 +1156,23 @@ def rho_nfw_m200(r,m200,z,cosmo_params,case):
 def rho_nfw_M200_int(r,m200,z,cosmo_params,case):
     
     """
-    Radial rho NFW 
-    INPUT: r is radial in [Mpc]
-           m200 is the mass inside r200 (Msol)
-           z is the redshift
-           cosmology is an astropy object
-    OUTPUT:  Msun/Mpc^3
+    NFW density (and r^2-weighted integrand) given M_200 and z.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    m200 : float
+        M_200 [M_sun].
+    z : float
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    ndarray
+        ρ_NFW(r) [M_sun / Mpc^3] or r^2 ρ_NFW(r) depending on the function.
     """
     rho_crit = rho_crit_z(z,cosmo_params,case)
 #    rho_crit = rho_crit.to(u.solMass / u.Mpc**3)
@@ -681,12 +1187,23 @@ def rho_nfw_M200_int(r,m200,z,cosmo_params,case):
 ###NFW Density Profile given M200, R200, and concentration###
 def rho_nfw(r,m200,r200,c200):
     """
-    Radial rho NFW 
-    INPUT: r is radial in [Mpc]
-           m200 is the mass inside r200 (Msol)
-           r200 is physical radius containing 200 times critical density
-           c200 is NFW concentration parameter
-    OUTPUT:  Msun/Mpc^3
+    NFW density (and r^2-weighted integrand) given (M_200, R_200, c_200).
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    m200 : float
+        M_200 [M_sun].
+    r200 : float
+        R_200 [Mpc].
+    c200 : float
+        Concentration.
+    
+    Returns
+    -------
+    ndarray
+        ρ_NFW(r) [M_sun / Mpc^3] or r^2 ρ_NFW(r) depending on the function.
     """
     g = (np.log(1+c200) - (c200/(1+c200)))**(-1.)
     rho_s = (m200/(4.*np.pi*r200**3.)) * c200**3. * g
@@ -696,12 +1213,23 @@ def rho_nfw(r,m200,r200,c200):
 
 def rho_nfw_int(r,m200,r200,c200):
     """
-    Radial r^2*rho NFW integrand for Mass measurement
-    INPUT: r is radial in [Mpc]
-           m200 is the mass inside r200 (Msol)
-           r200 is physical radius containing 200 times critical density
-           c200 is NFW concentration parameter
-    OUTPUT:  Msun/Mpc^3
+    NFW density (and r^2-weighted integrand) given (M_200, R_200, c_200).
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    m200 : float
+        M_200 [M_sun].
+    r200 : float
+        R_200 [Mpc].
+    c200 : float
+        Concentration.
+    
+    Returns
+    -------
+    ndarray
+        ρ_NFW(r) [M_sun / Mpc^3] or r^2 ρ_NFW(r) depending on the function.
     """
     g = (np.log(1+c200) - (c200/(1+c200)))**(-1.)
     rho_s = (m200/(4.*np.pi*r200**3.)) * c200**3. * g
@@ -712,12 +1240,23 @@ def rho_nfw_int(r,m200,r200,c200):
 ###Nominal Einasto Density Profile###
 def rho_einasto(r,rho_0, h, n):    
     """
-    Radial rho Einasto 
-    INPUT: r is radial in [Mpc]
-           rho_0 is the half density Msol/Mpc^3
-           h is the half radius (Mpc)
-           n is the outer slope (?)
-    OUTPUT:  Msun/Mpc^3
+    Einasto density (and r^2-weighted integrand).
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    rho_0 : float
+        Density scale [M_sun / Mpc^3].
+    h : float
+        Scale radius [Mpc].
+    n : float
+        Shape parameter.
+    
+    Returns
+    -------
+    ndarray
+        ρ_Einasto(r) [M_sun / Mpc^3] or r^2 ρ(r) depending on the function.
     """
     return rho_0*np.exp(-(r/h)**(1./n))
 
@@ -725,19 +1264,64 @@ def rho_einasto(r,rho_0, h, n):
 def rho_einasto_int(r,rho_0, h, n):
     
     """
-    Radial r^2*rho Einasto integrand for Mass measurement.
-    INPUT: r is radial in [Mpc]
-           rho_0 is the half density Msol/Mpc^3
-           h is the half radius (Mpc)
-           n is the outer slope (?)
-    OUTPUT:  Msun/Mpc^3
+    Einasto density (and r^2-weighted integrand).
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    rho_0 : float
+        Density scale [M_sun / Mpc^3].
+    h : float
+        Scale radius [Mpc].
+    n : float
+        Shape parameter.
+    
+    Returns
+    -------
+    ndarray
+        ρ_Einasto(r) [M_sun / Mpc^3] or r^2 ρ(r) depending on the function.
     """
     return r**2*rho_0*np.exp(-(r/h)**(1./n))
 
 def rho_dehnen(r,mass_0, r_s, gamma):
+    """
+    Dehnen density profile ρ(r).
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    mass_0 : float
+        Mass normalization [M_sun].
+    r_s : float
+        Scale radius [Mpc].
+    gamma : float
+        Inner slope parameter.
+    
+    Returns
+    -------
+    ndarray
+        ρ_Dehnen(r) [M_sun / Mpc^3].
+    """
     return (3.0-gamma)*mass_0*r_s/(r**gamma)/((r+r_s)**(4-gamma))/(4.0*np.pi)
 
 def mass_einasto(r,rho_0,h,n):
+    """
+    Enclosed mass profile M(<r) and mean enclosed density for the specified profile.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radii [Mpc].
+    other parameters : ...
+        Profile parameters (Einasto / NFW) as required by the specific function.
+    
+    Returns
+    -------
+    (ndarray, ndarray)
+        (⟨ρ⟩(<r), M(<r)) where ⟨ρ⟩ is the mean density inside r and M is enclosed mass [M_sun].
+    """
     rho_r = []
     M_ein = []
     for j in range(len(r)):
@@ -746,6 +1330,21 @@ def mass_einasto(r,rho_0,h,n):
     return rho_r, M_ein
 
 def mass_nfw_M200(r,M200_fit_50,z,cosmo_params,cosmo_name):
+    """
+    Enclosed mass profile M(<r) and mean enclosed density for the specified profile.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radii [Mpc].
+    other parameters : ...
+        Profile parameters (Einasto / NFW) as required by the specific function.
+    
+    Returns
+    -------
+    (ndarray, ndarray)
+        (⟨ρ⟩(<r), M(<r)) where ⟨ρ⟩ is the mean density inside r and M is enclosed mass [M_sun].
+    """
     rho_r = []
     M_nfw = []
     for j in range(len(r)):
@@ -754,6 +1353,21 @@ def mass_nfw_M200(r,M200_fit_50,z,cosmo_params,cosmo_name):
     return rho_r, M_nfw
 
 def mass_nfws(r,rho_s,r_s):
+    """
+    Enclosed mass profile M(<r) and mean enclosed density for the specified profile.
+    
+    Parameters
+    ----------
+    r : array_like
+        Radii [Mpc].
+    other parameters : ...
+        Profile parameters (Einasto / NFW) as required by the specific function.
+    
+    Returns
+    -------
+    (ndarray, ndarray)
+        (⟨ρ⟩(<r), M(<r)) where ⟨ρ⟩ is the mean density inside r and M is enclosed mass [M_sun].
+    """
     rho_r = []
     M_nfws = []
     for j in range(len(r)):
@@ -771,6 +1385,29 @@ def mass_nfws(r,rho_s,r_s):
 
 
 def einasto_nfwM200_errors(M200, mass_perc_error, z,cosmo_params,case):
+    """
+    Fit profile parameters to match an M_200 NFW target and propagate uncertainties.
+    
+    Parameters
+    ----------
+    M200 : float or Quantity
+        Target halo mass [M_sun].
+    mass_perc_error : float
+        Fractional mass uncertainty (e.g., 0.15 for 15%). For `dehnen_nfwM200_errors` this is set ≈ 0.
+    z : float
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    tuple
+        Best-fit parameters and 1σ uncertainties for the chosen profile (and derived quantities like R200, c200).
+    
+    Notes
+    -----
+    These functions invert density profiles by fitting r^2ρ(r) between 0 and R_200 to an NFW target.
+    """
     rho_crit = rho_crit_z(z,cosmo_params,case)
 #    rho_crit = rho_crit.to(u.solMass / u.Mpc**3)
     R200 =  (3*M200/(4*np.pi*200.* rho_crit))**(1./3.)
@@ -799,6 +1436,29 @@ def einasto_nfwM200_errors(M200, mass_perc_error, z,cosmo_params,case):
 
 
 def nfws_errors(M200, mass_perc_error, z,cosmo_params,case):
+    """
+    Fit profile parameters to match an M_200 NFW target and propagate uncertainties.
+    
+    Parameters
+    ----------
+    M200 : float or Quantity
+        Target halo mass [M_sun].
+    mass_perc_error : float
+        Fractional mass uncertainty (e.g., 0.15 for 15%). For `dehnen_nfwM200_errors` this is set ≈ 0.
+    z : float
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    tuple
+        Best-fit parameters and 1σ uncertainties for the chosen profile (and derived quantities like R200, c200).
+    
+    Notes
+    -----
+    These functions invert density profiles by fitting r^2ρ(r) between 0 and R_200 to an NFW target.
+    """
     rho_crit = rho_crit_z(z,cosmo_params,case)
 #    rho_crit = rho_crit.to(u.solMass / u.Mpc**3)
     R200 =  (3*M200/(4*np.pi*200.* rho_crit))**(1./3.)
@@ -828,6 +1488,29 @@ def nfws_errors(M200, mass_perc_error, z,cosmo_params,case):
     return M200,R200, conc, rho_s_fit, sigma_rho_s, r_s_fit, sigma_r_s
 
 def dehnen_nfwM200_errors(M200, z,cosmo_params,case):
+    """
+    Fit profile parameters to match an M_200 NFW target and propagate uncertainties.
+    
+    Parameters
+    ----------
+    M200 : float or Quantity
+        Target halo mass [M_sun].
+    mass_perc_error : float
+        Fractional mass uncertainty (e.g., 0.15 for 15%). For `dehnen_nfwM200_errors` this is set ≈ 0.
+    z : float
+        Redshift.
+    cosmo_params, case : tuple, str
+        Cosmology description.
+    
+    Returns
+    -------
+    tuple
+        Best-fit parameters and 1σ uncertainties for the chosen profile (and derived quantities like R200, c200).
+    
+    Notes
+    -----
+    These functions invert density profiles by fitting r^2ρ(r) between 0 and R_200 to an NFW target.
+    """
     mass_perc_error=1e-30
     rho_crit = rho_crit_z(z,cosmo_params,case)
 #    rho_crit = rho_crit.to(u.solMass / u.Mpc**3)
@@ -859,16 +1542,41 @@ def dehnen_nfwM200_errors(M200, z,cosmo_params,case):
 def rho_Dehnen_int(r,M, r_s, gamma):
     
     """
-    Radial r^2*rho Einasto integrand for Mass measurement.
-    INPUT: r is radial in [Mpc]
-           rho_0 is the half density Msol/Mpc^3
-           h is the half radius (Mpc)
-           n is the outer slope (?)
-    OUTPUT:  Msun/Mpc^3
+    r^2 ρ_Dehnen(r) integrand (for mass integration).
+    
+    Parameters
+    ----------
+    r : array_like
+        Radius [Mpc].
+    M : float
+        Mass normalization [M_sun].
+    r_s : float
+        Scale radius [Mpc].
+    gamma : float
+        Inner slope parameter.
+    
+    Returns
+    -------
+    ndarray
+        r^2 ρ_Dehnen(r).
     """
     return r**2*rho_dehnen(r,M, r_s, gamma)
 
 def find_nearest(array,value):
+    """
+    Return the array value closest to a target.
+    
+    Parameters
+    ----------
+    array : array_like
+        Input array.
+    value : float
+        Target value.
+    
+    Returns
+    -------
+    scalar
+        The element of `array` nearest to `value`.
+    """
     idx = (np.abs(array-value)).argmin()
     return array[idx]
-
