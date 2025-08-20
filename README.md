@@ -64,7 +64,7 @@ pip install numpy scipy pandas astropy emcee matplotlib
 
 2. **Input format** for `Rines_galaxy_data.txt` (one galaxy per line):
    ```
-   RAh  RAm  RAs   DEd  DEm  DEs   redshift
+   RA  DEC  redshift
    ```
    RA and Dec are in decimal degrees. Redshift is dimensionless $z$.
 
