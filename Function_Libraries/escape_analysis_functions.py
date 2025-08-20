@@ -177,10 +177,12 @@ class EscapeVelocityModeling:
         z_use = self.z_round(z_use)
         
         calib_file = os.path.join(self.path_to_calibration, f"Zv_fits_z_{z_use:.2f}_M200_{M_use:.1f}.pkl")
-        with open(calib_file, "rb") as f:
-            data_use, num_mem_meds = pickle.load(f)
-
-
+        self._calib_cache = {}
+        key = (z_use, M_use)
+        if key not in self._calib_cache:
+            with open(calib_file, "rb") as f:
+                self._calib_cache[key] = pickle.load(f)
+        data_use, num_mem_meds = self._calib_cache[key]
         xmin, xmax = 0.1, 10
         all_rand_Zv = []
         
@@ -589,7 +591,7 @@ class MCMCMassEstimator:
             
         return lp + ll
 
-def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_data, R200, cosmo_params, cosmo_name):
+def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_data, M200, R200, cosmo_params, cosmo_name):
     '''
     Prepares the Escape Velocity Mass Estimation by estimating the edge from phase-space data
     '''
@@ -610,6 +612,14 @@ def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_dat
     bins = 5
     coremin_cut = 0.44 # no interlopers in first radial bin, for 5 bins
     Nbin, gap = 20, 600
+    
+    # Model restrictions
+    N_min = 50         
+    N_max = 1200
+    logM_min = 14.0  
+    logM_max= 15.6
+    z_min= 0.0
+    z_max = 0.7
     
     cut = 4500
     
@@ -639,6 +649,10 @@ def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_dat
         vesc_data = vesc_data[0]
         vesc_data_err = np.array([vesc_error for i in range(bins)])    
         z_use = np.repeat(cl_z, 1)
+        if N<N_min:
+            print('Insufficient galaxy data in this range')
+        if (N>N_max) or (np.log10(M200)<logM_min) or (np.log10(M200)>logM_max) or (cl_z>z_max):
+            print('Sampling, Mass, and/or z are out of range for the model')    
         
         return galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z
     else:
@@ -715,7 +729,9 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
         sampler.run_mcmc(p0, nsteps, progress=progress)
         
         # Extract results
-        samples = (sampler.chain.reshape((-1, 1))).flatten()
+        chain = sampler.get_chain(flat=True)  # emcee v3
+        burn = int(0.5 * nsteps * nwalkers)
+        samples = chain[burn:, 0]
         one_sig_down = np.percentile(samples, 33-16.5)
         mean = np.percentile(samples, 50)
         one_sig_up = np.percentile(samples, 67+16.5)
@@ -921,7 +937,7 @@ def main(path_to_Zv_calibration,galaxy_positional_data,cluster_positional_data,
     rho_crit = rho_crit_z(cl_z,cosmo_params,cosmo_name).to(u.Msun/u.Mpc**3)
     R200 = (3 * M200 / (200 * 4 * np.pi * rho_crit.value))**(1/3)
     galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z=mass_estimation_preprocessing(cluster_positional_data,galaxy_positional_data,
-                                                       R200, cosmo_params,cosmo_name)
+                                                       M200, R200, cosmo_params,cosmo_name)
 
     escape_modeler = EscapeVelocityModeling(path_to_calibration=path_to_Zv_calibration)
 
