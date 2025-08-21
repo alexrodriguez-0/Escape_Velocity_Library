@@ -754,13 +754,13 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
         sampler.run_mcmc(p0, nsteps, progress=progress)
         
         # Extract results
-        samples=sampler.chain.reshape((-1, 1)).flatten()
+        #samples=sampler.chain.reshape((-1, 1)).flatten()
         
         # Burn-in: discard first half of *steps*
-        #burn = int(0.5 * nsteps)  # or 3*max(tau)
-        #flat = sampler.get_chain(discard=burn, flat=True)[:, 0]
-        #logp = sampler.get_log_prob(discard=burn, flat=True)
-        #samples = flat[np.isfinite(logp)]
+        burn = int(0.5 * nsteps)  # or 3*max(tau)
+        flat = sampler.get_chain(discard=burn, flat=True)[:, 0]
+        logp = sampler.get_log_prob(discard=burn, flat=True)
+        samples = flat[np.isfinite(logp)]
         #try:
             #tau = sampler.get_autocorr_time(quiet=True)
             # consider thin = int(0.5 * max(tau))
@@ -892,7 +892,7 @@ def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data
         where:
         - RA_deg  : Right ascension in decimal degrees (0 <= RA_deg < 360)
         - DEC_deg : Declination in decimal degrees (-90 <= DEC_deg <= +90)
-        - redshift: Dimensionless z (NOT velocity/c)
+        - redshift: Dimensionless z
 
     cluster_positional_data : tuple of (float, float, float)
         Cluster coordinates and redshift as (cl_ra_deg, cl_dec_deg, cl_z) where:
