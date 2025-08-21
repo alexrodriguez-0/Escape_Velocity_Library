@@ -149,7 +149,7 @@ class EscapeVelocityModeling:
         fit_x, fit_y = 10**fit_x, 10**fit_y
         return fit_x, fit_y
 
-    def sample_Zv(self, N, M_use, z_use):
+    def sample_Zv(self, N, bins, M_use, z_use):
         """
         Randomly sample Zv for a given sampling, mass, and redshift.
         
@@ -157,6 +157,8 @@ class EscapeVelocityModeling:
         -----------
         N : int
             Number of samples
+        bins : int
+            Number of bins
         M_use : float
             Mass to use
         z_use : float
@@ -183,7 +185,7 @@ class EscapeVelocityModeling:
         xmin, xmax = 0.1, 10
         all_rand_Zv = []
         
-        for i in range(5):
+        for i in range(bins):
             bin_index = i
 
             # Skewness
@@ -320,13 +322,13 @@ class ClusterDataHandler:
         return datafinal
 
     @staticmethod
-    def calculate_projected_quantities(gal_ra, gal_dec, gal_z, cl_ra, cl_dec, cl_z, cosmo_params, case):
+    def calculate_projected_quantities(gal_ras, gal_decs, gal_z, cl_ra, cl_dec, cl_z, cosmo_params, case):
         """
         Calculate projected distance and line-of-sight velocity.
         
         Parameters:
         -----------
-        gal_ra, gal_dec, gal_z : array-like
+        gal_ras, gal_decs, gal_z : array-like
             Galaxy coordinates and redshifts
         cl_ra, cl_dec, cl_z : float
             Cluster coordinates and redshift
@@ -342,37 +344,13 @@ class ClusterDataHandler:
         """
         d_A = D_A(cl_z, cosmo_params, case).value
         sep = angular_separation(np.radians(cl_ra), np.radians(cl_dec),
-                               np.radians(gal_ra), np.radians(gal_dec))
+                               np.radians(gal_ras), np.radians(gal_decs))
 
         R_proj = sep * d_A  # Projected distance in Mpc
         from astropy import constants as const
         c_value = const.c.value / 1000  # speed of light in km/s
         v_los = c_value * (gal_z - cl_z) / (1 + cl_z)
 
-        return R_proj, v_los
-
-    def get_r_v_proj(self, gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, cosmo_params, case):
-        """
-        Get projected radii and velocities for galaxy sample.
-        
-        Parameters:
-        -----------
-        gal_ras, gal_decs, gal_zs : array-like
-            Galaxy coordinates and redshifts
-        cl_ra, cl_dec, cl_z : float
-            Cluster coordinates and redshift
-        cosmo_params : list
-            Cosmological parameters
-        case : str
-            Cosmology case name
-            
-        Returns:
-        --------
-        tuple
-            Projected distances and line-of-sight velocities
-        """
-        R_proj, v_los = self.calculate_projected_quantities(
-            gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, cosmo_params, case)
         return R_proj, v_los
 
     def iterate_center(self, gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
@@ -402,7 +380,7 @@ class ClusterDataHandler:
         tuple
             Updated galaxy coordinates, projected distances, velocities, and count
         """
-        r_proj, v_los = self.get_r_v_proj(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
+        r_proj, v_los = self.calculate_projected_quantities(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
                                          cosmo_params, case)
 
         mask_vlos = np.abs(v_los) < cut
@@ -418,7 +396,7 @@ class ClusterDataHandler:
         return gal_ras[w], gal_decs[w], gal_zs[w], r_proj, v_los, N
 
     def iterate_center_N_times(self, gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
-                              R200, min_r, max_r, cut, cosmo_params, case):
+                              R200, min_r, max_r, cut, cosmo_params, case, N_iterations=10):
         """
         Centering algorithm for phase-space data (iterate N=10 times). Ideally the user should check for convergence.
         
@@ -438,8 +416,8 @@ class ClusterDataHandler:
             Cosmological parameters
         case : str
             Cosmology case name
-            
-        Returns:
+        N_iterations :  int, optional
+            Number of centering iterations (default: 10)
         --------
         tuple
             Lists of updated center coordinates and final projected data
@@ -448,19 +426,14 @@ class ClusterDataHandler:
         gal_decs_news = []
         gal_zs_news = []
         
-        for i in range(10):
+        for i in range(N_iterations):
             if i == 0:
-                gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = \
-                    self.iterate_center(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,
-                                      R200, min_r, max_r, cut, cosmo_params, case)
+                gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = self.iterate_center(gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z,R200, min_r, max_r, cut, cosmo_params, case)
                 gal_ras_news.append(np.mean(gal_ras_new))
                 gal_decs_news.append(np.mean(gal_decs_new))
                 gal_zs_news.append(np.mean(gal_zs_new))
             else:
-                gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = \
-                    self.iterate_center(gal_ras, gal_decs, gal_zs, gal_ras_news[-1],
-                                      gal_decs_news[-1], gal_zs_news[-1], R200, min_r, max_r,
-                                      cut, cosmo_params, case)
+                gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = self.iterate_center(gal_ras, gal_decs,gal_zs, gal_ras_news[-1],gal_decs_news[-1], gal_zs_news[-1], R200, min_r, max_r,cut, cosmo_params, case)
                 gal_ras_news.append(np.mean(gal_ras_new))
                 gal_decs_news.append(np.mean(gal_decs_new))
                 gal_zs_news.append(np.mean(gal_zs_new))
@@ -533,10 +506,11 @@ class ClusterDataHandler:
 class MCMCMassEstimator:
     """Class to handle MCMC mass estimation with multiprocessing support."""
     
-    def __init__(self, M200, cl_z, N, escape_modeler, cosmo_params, cosmo_name, mass_range_factor=1.5):
+    def __init__(self, M200, cl_z, N, bins, escape_modeler, cosmo_params, cosmo_name, mass_range_factor=1.5):
         self.M200 = M200
         self.cl_z = cl_z
         self.N = N
+        self.bins = bins
         self.escape_modeler = escape_modeler
         self.cosmo_params = cosmo_params
         self.cosmo_name = cosmo_name
@@ -565,7 +539,7 @@ class MCMCMassEstimator:
             r_cosmo, ymodel = ymodel_fixed(p_theta_array, p_M200)
 
             # Use the escape_modeler method for sampling Zv
-            Zv_vec = self.escape_modeler.sample_Zv(self.N, np.log10(self.M200), self.cl_z)
+            Zv_vec = self.escape_modeler.sample_Zv(self.N, self.bins, np.log10(self.M200), self.cl_z)
             ymodel = ymodel / Zv_vec
 
             inv_sigma2 = 1.0 / (yerr**2)
@@ -587,70 +561,117 @@ class MCMCMassEstimator:
             
         return lp + ll
 
-def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_data, M200, R200, vesc_error, coremin_cut, cut, cosmo_params, cosmo_name):
-    '''
-    Prepares the Escape Velocity Mass Estimation by estimating the edge from phase-space data
-    '''
+def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_data,
+                                  M200, vesc_error, coremin_cut, cut, bins,
+                                  cosmo_params, cosmo_name):
+    """
+    Prepares the Escape Velocity Mass Estimation by estimating the edge from phase-space data.
+    Raises ValueError if the run is outside the calibrated domain or if the edge is unusable.
+    """
+    # Model Restrictions
+    N_min, N_max   = 50, 1200
+    logM_min, logM_max = 14.0, 15.6
+    z_min, z_max   = 0.0, 0.7
     
+    # Model Hyper-parameters
+    min_r, max_r   = 0.2, 1.0
+    Nbin, gap      = 20, 600
+
     data_handler = ClusterDataHandler()
     cl_ra, cl_dec, cl_z = cluster_positional_data
-    gal_ras = galaxy_positional_data[:,0]
-    gal_decs = galaxy_positional_data[:,1]
-    gal_zs = galaxy_positional_data[:,2]
-    
-    
-    # Model hyper-parameters
-    min_r = 0.2
-    max_r = 1
-    Nbin, gap = 20, 600
-    bins = 5
-    
-    # Model restrictions
-    N_min = 50
-    N_max = 1200
-    logM_min = 14.0
-    logM_max= 15.6
-    z_min= 0.0
-    z_max = 0.7
-    
-    
-    # Use the data handler methods to construct the phase-space
+
+    # Bounds on mass and z
+    log10M = float(np.log10(M200))
+    if not (logM_min <= log10M <= logM_max):
+        raise ValueError(f"log10(M200)={log10M:.3f} outside [{logM_min}, {logM_max}]")
+    if not (z_min <= cl_z <= z_max):
+        raise ValueError(f"z={cl_z:.3f} outside [{z_min}, {z_max}]")
+
+    # R200 from M200 and rho_crit(z)
+    rho_crit = rho_crit_z(cl_z, cosmo_params, cosmo_name).to(u.Msun/u.Mpc**3).value
+    R200 = (3.0 * M200 / (200.0 * 4.0 * np.pi * rho_crit)) ** (1.0/3.0)  # [Mpc]
+
+    # Galaxy inputs (already in decimal degrees and redshift)
+    gal_ras  = galaxy_positional_data[:, 0].astype(float)
+    gal_decs = galaxy_positional_data[:, 1].astype(float)
+    gal_zs   = galaxy_positional_data[:, 2].astype(float)
+
+    # centering
     gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = data_handler.iterate_center(
-        gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name)
+        gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, R200, min_r, max_r,
+        cut, cosmo_params, cosmo_name
+    )
+    if len(gal_ras_new) == 0:
+        raise ValueError("Insufficient galaxy data after first centering pass.")
+
+    gal_ras_news, gal_decs_news, gal_zs_news, r_proj, v_los, N = data_handler.iterate_center_N_times( gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name)
     
-    if len(gal_ras_new) != 0:
-        gal_ras_news, gal_decs_news, gal_zs_news, r_proj, v_los, N = data_handler.iterate_center_N_times(
-            gal_ras, gal_decs, gal_zs, cl_ra, cl_dec, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name)
-        
-        data = np.vstack((r_proj, v_los)).T
-        coremin = R200 * coremin_cut
-        
-        # Use the data handler shiftgapper method to remove interlopers
-        datafinal = data_handler.shiftgapper(data, 1000, Nbin, gap, coremin)
-        galaxy_r, galaxy_v = datafinal[:,0], datafinal[:,1]
-        N = len(np.where((galaxy_r/R200 > min_r) & (galaxy_r/R200 < max_r))[0])
-        
-        # Use the data handler get_edge method to identify the edge
-        vesc_data_r, vesc_data_theta, vesc_data = data_handler.get_edge(
-            bins, galaxy_r, galaxy_v, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name)
-        
-        vesc_data_r = vesc_data_r[0]
+    # Ensure the re-centering has converged to within (default) 1% variations of theta_200
+    def recenter_convergence_test(gal_ras_news, gal_decs_news, cl_z, R200,
+                                  cosmo_params, cosmo_name, frac_tol=0.01):
+        """
+        Return (converged_bool, frac_shift, dtheta_rad, theta200_rad).
+        Checks only the *last two* centers.
+        """
+        if len(gal_ras_news) < 2:
+            return False, np.nan, np.nan, np.nan
 
-        vesc_data_theta = vesc_data_theta.to(u.radian).value.reshape(1, bins)
-        vesc_data = vesc_data[0]
-        vesc_data_err = np.array([vesc_error for i in range(bins)])
-        z_use = np.repeat(cl_z, 1)
-        if N<N_min:
-            print('Insufficient galaxy data in this range')
-        if (N>N_max) or (np.log10(M200)<logM_min) or (np.log10(M200)>logM_max) or (cl_z>z_max):
-            print('Sampling, Mass, and/or z are out of range for the model')
+        c_prev = SkyCoord(gal_ras_news[-2]*u.deg, gal_decs_news[-2]*u.deg)
+        c_curr = SkyCoord(gal_ras_news[-1]*u.deg, gal_decs_news[-1]*u.deg)
+        dtheta = (c_prev.separation(c_curr).to(u.rad)).value    # last-step shift
+
+        theta200 = R200/D_A(cl_z, cosmo_params, cosmo_name).value
+        frac = (dtheta / theta200)
+
+        return (frac <= frac_tol), frac, dtheta, theta200
+    
+    converged, frac, dtheta, theta200 = recenter_convergence_test(gal_ras_news, gal_decs_news, cl_z, R200, cosmo_params, cosmo_name)
+    if not converged:
+        raise ValueError(f"Cluster re-centering not converged: last shift = {frac:.3%} of θ_200 "
+                         f"({dtheta:.3e} vs θ_200={theta200:.3e}). Either proceed with caution, increase N_iterations in iterate_center_N_times,  or increase frac_tol threshold criterion in recenter_convergence_test.")
         
-        return galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z
-    else:
-        print('Insufficient galaxy data in this range')
+    # interloper removal
+    data = np.vstack((r_proj, v_los)).T
+    coremin = R200 * coremin_cut
+    datafinal = data_handler.shiftgapper(data, 1000, Nbin, gap, coremin)
+    galaxy_r, galaxy_v = datafinal[:, 0], datafinal[:, 1]
+
+    # members within [min_r, max_r] R200 after cleaning
+    N = int(np.sum((galaxy_r/R200 > min_r) & (galaxy_r/R200 < max_r)))
+    if not (N_min <= N <= N_max):
+        raise ValueError(f"N={N} outside calibrated range [{N_min}, {N_max}]")
+
+    # --- edge finding ---
+    vesc_data_r, vesc_data_theta, vesc_data = data_handler.get_edge(
+        bins, galaxy_r, galaxy_v, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name
+    )
+
+    # normalize shapes (expect 1D arrays of length `bins`)
+    vesc_data_r = np.asarray(vesc_data_r[0], dtype=float)     # (bins,)
+    vesc_data    = np.asarray(vesc_data[0], dtype=float)       # (bins,)
+
+    # no NaN/inf allowed in edge, AKA there must be galaxies in each bin
+    if (not np.all(np.isfinite(vesc_data_r))) or (not np.all(np.isfinite(vesc_data))):
+        raise ValueError("Data does not have sufficient sampling for galaxies to be contained in each radial bin.")
+
+    # theta in radians
+    vesc_data_theta = vesc_data_theta.to(u.radian).value.reshape(1, bins)
+    vesc_data_err   = np.full(bins, float(vesc_error), dtype=float)
+    
+    #print('N:',N)
+    #print(f"DEC before: {cl_dec}")
+    #print(f"DEC after: {gal_decs_news[-1]}")
+
+    #print(f"RA before: {cl_ra}")
+    #print(f"RA after: {gal_ras_news[-1]}")
+    #print('z before:',cl_z)
+    #print('z after:',gal_zs_news[-1])
+
+    return galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z
 
 
-def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err,
+
+def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err, bins,
                              escape_modeler, cosmo_params, cosmo_name,
                              nwalkers, nsteps, n_processes,
                              mass_range_factor=1.5, progress=True):
@@ -671,6 +692,8 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
         Observed escape velocity data
     vesc_data_err : array
         Uncertainties in escape velocity data
+    bins : int
+        Number of bins in the sample (default: 5)
     escape_modeler : object
         Escape velocity modeling object with v_esc_den_M200 and sample_Zv methods
     cosmo_params : list
@@ -682,7 +705,7 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
     nsteps : int, optional
         Number of MCMC steps
     n_processes : int, optional
-        Number of processes for parallelization (default: 30)
+        Number of processes for parallelization
     mass_range_factor : float, optional
         Factor determining prior range around M200 (default: 1.5)
     progress : bool, optional
@@ -699,7 +722,7 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
     """
     
     # Create the estimator instance
-    estimator = MCMCMassEstimator(M200, cl_z, N, escape_modeler, cosmo_params, cosmo_name, mass_range_factor)
+    estimator = MCMCMassEstimator(M200, cl_z, N, bins, escape_modeler, cosmo_params, cosmo_name, mass_range_factor)
     
     # Set up MCMC parameters
     ndim = 1
@@ -720,6 +743,8 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
         sampler.run_mcmc(p0, nsteps, progress=progress)
         
         # Extract results
+        #samples=sampler.chain.reshape((-1, 1)).flatten()
+        
         # Burn-in: discard first half of *steps*
         burn = int(0.5 * nsteps)  # or 3*max(tau)
         flat = sampler.get_chain(discard=burn, flat=True)[:, 0]
@@ -756,10 +781,12 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
         pool.join()
 
 def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200_err_down,N,cl_z,vesc_data_r,vesc_data_theta,
-                                   vesc_data,vesc_data_err,R200,galaxy_r, galaxy_v,cosmo_params,cosmo_name):
+                                   vesc_data,vesc_data_err,bins,galaxy_r, galaxy_v,cluster_name,cosmo_params,cosmo_name):
         '''
         Prepares a Radial Velocity Phase-Space Given the Results of the Mass Constraint
         '''
+        rho_crit = rho_crit_z(cl_z,cosmo_params,cosmo_name).to(u.Msun/u.Mpc**3)
+        R200 = (3 * M200 / (200 * 4 * np.pi * rho_crit.value))**(1/3)
         # Create mass arrays for both measurements including uncertainties
         escape_masses_min = 10**(results['median'] - (results['median']-results['one_sig_down']))
         escape_masses_max = 10**(results['median'] + (results['one_sig_up']-results['median']))
@@ -767,7 +794,7 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
         wl_masses_min = 10**(np.log10(M200) - M200_err_down)
         wl_masses_max = 10**(np.log10(M200) + M200_err_up)
         wl_masses_med = M200
-        Zv_vec0 = np.array([escape_modeler.sample_Zv(N, np.log10(M200), cl_z) for l in range(1000)])
+        Zv_vec0 = np.array([escape_modeler.sample_Zv(N, bins, np.log10(M200), cl_z) for l in range(1000)])
         Zv_average = np.median(Zv_vec0, axis=0)
         fig, ax = plt.subplots(figsize=(10,10))
         r_av = vesc_data_r/R200
@@ -816,7 +843,8 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
                          -v_theory_min[0]/Zv_average,
                          -v_theory_max[0]/Zv_average,
                          alpha=alpha_use, color='g')
-
+        
+        plt.title(cluster_name,fontsize=40)
         plt.scatter(galaxy_r/R200, galaxy_v, c='black')
         plt.xlabel(r'$r_{\perp}/r_{200}$', size=40)
         plt.ylabel(r'$v_{\text{los}}\,[\text{km/s}]$', size=40)
@@ -829,9 +857,9 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
         
 # main function
 def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data,
-         M200, M200_err_up, M200_err_down, cosmo_params, cosmo_name,
+         M200, M200_err_up, M200_err_down, cluster_name, cosmo_params, cosmo_name,
          nwalkers=250, nsteps=2000, n_processes=os.cpu_count(),
-         vesc_error=30, coremin_cut=0.44, cut=4500):
+         vesc_error=30, coremin_cut=0.44, cut=4500, bins=5):
     """
     Perform escape velocity-based cluster mass estimation using MCMC analysis.
     
@@ -872,6 +900,10 @@ def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data
     M200_err_down : float  
         Lower 1-sigma uncertainty on M200 in log10 space (dex).
         Used for plotting comparison with the dynamical mass estimate.
+        
+    cluster_name : str  
+       Name of the cluster you are observing, e.g. 'A7'.
+       Used for plotting the phase-space diagram.
         
     cosmo_params : list
         Cosmological parameters in format dependent on `cosmo_name`:
@@ -914,21 +946,29 @@ def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data
         and measuring the edge. Only galaxies with |v_los| < cut enter the edge
         finding step (guards against extreme outliers).
         
+    bins : float, optional (default=5)
+        The number of bins used the divide the phase-space edge. The default will be 5 bins as this is what the Zv calibration is measured for. DO NOT MODIFY unless you have also re-measured the Zv calibration for your desired bin count.
+        
     Returns
     -------
-    None
-        Function performs analysis and displays results via matplotlib plots.
-        The main outputs are:
+    results : Dictionary containing:
+        - 'samples': MCMC samples
+        - 'median': median of posterior
+        - 'one_sig_up': Upper 1-sigma bound
+        - 'one_sig_down': Lower 1-sigma bound
+        - 'sampler': The emcee sampler object
+    
+    The additional displayed outputs are:
         - Printed MCMC mass estimate with uncertainties
+        - Posterior plot of M200
         - Phase-space diagram showing galaxy data, escape velocity boundary,
-          dynamical fit, and comparison with input mass estimate
+          dynamical fit, and comparison with starting mass estimate
           
     Notes
     -----
     The analysis pipeline includes:
     2. Data preprocessing: coordinate conversion, centering, velocity cuts. 
-    The centering algorithim undergoes 10 iterations. The ~50 clusters in Rodriguez et al. 2025 all converged
-    by this iteration, but the user can affirm this as well.
+    The centering algorithim undergoes 10 iterations. Convergence is defined such that the re-centered position of the last   iteration has moved by less than 1% of theta_200 from the prior iteration. 
     3. Interloper removal using shifting-gapper algorithm
     4. Escape velocity boundary identification from phase-space data
     5. MCMC mass estimation using escape velocity suppression
@@ -952,20 +992,23 @@ def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data
     """
     
     cl_ra, cl_dec, cl_z = cluster_positional_data
-    rho_crit = rho_crit_z(cl_z,cosmo_params,cosmo_name).to(u.Msun/u.Mpc**3)
-    R200 = (3 * M200 / (200 * 4 * np.pi * rho_crit.value))**(1/3)
     galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z=mass_estimation_preprocessing(cluster_positional_data,galaxy_positional_data,
-                                                       M200, R200, vesc_error,coremin_cut, cut, cosmo_params,cosmo_name)
+                                                       M200, vesc_error,coremin_cut, cut, bins, cosmo_params,cosmo_name)
 
     escape_modeler = EscapeVelocityModeling(path_to_calibration=path_to_Zv_calibration)
-
+    
     results = run_mcmc_mass_estimation(
-        M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err,
+        M200, cl_z, N, vesc_data_theta, vesc_data, vesc_data_err, bins,
         escape_modeler, cosmo_params, cosmo_name,
         nwalkers=nwalkers, nsteps=nsteps, n_processes=n_processes,
         mass_range_factor=1.5, progress=True
     )
-    mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200_err_down,N,cl_z,vesc_data_r,vesc_data_theta,vesc_data,vesc_data_err,R200,galaxy_r, galaxy_v,cosmo_params,cosmo_name)
     
+    mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,
+                                       M200_err_down,N,cl_z,vesc_data_r,vesc_data_theta,vesc_data,
+                                            vesc_data_err,bins,galaxy_r, galaxy_v,cluster_name,cosmo_params,cosmo_name)
+        
+    return results
+
 if __name__ == "__main__":
     main()
