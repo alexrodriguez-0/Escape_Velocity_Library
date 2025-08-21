@@ -17,6 +17,7 @@ from multiprocessing import Pool
 from astropy import constants as const
 import emcee
 import matplotlib.pyplot as plt
+from astropy.stats import biweight_location
 
 
 class EscapeVelocityModeling:
@@ -436,7 +437,8 @@ class ClusterDataHandler:
                 gal_ras_new, gal_decs_new, gal_zs_new, r_proj, v_los, N = self.iterate_center(gal_ras, gal_decs,gal_zs, gal_ras_news[-1],gal_decs_news[-1], gal_zs_news[-1], R200, min_r, max_r,cut, cosmo_params, case)
                 gal_ras_news.append(np.mean(gal_ras_new))
                 gal_decs_news.append(np.mean(gal_decs_new))
-                gal_zs_news.append(np.mean(gal_zs_new))
+                location = biweight_location(gal_zs_new,c=25) #use bi-weight estimator
+                gal_zs_news.append(location)
 
         return gal_ras_news, gal_decs_news, gal_zs_news, r_proj, v_los, N
 
@@ -652,7 +654,7 @@ def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_dat
     if not (N_min <= N <= N_max):
         raise ValueError(f"N={N} outside calibrated range [{N_min}, {N_max}]")
 
-    # --- edge finding ---
+    # edge finding
     vesc_data_r, vesc_data_theta, vesc_data = data_handler.get_edge(
         bins, galaxy_r, galaxy_v, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name, MONOTONIC=MONOTONIC
     )
