@@ -934,15 +934,16 @@ def r_eq(z_val,M200_val,cosmo_params,case):
     all_masses=[]
     rho_crit = rho_crit_z(z_val,cosmo_params,case)
     #structure of above are the masses enclosed within each r200_guess, for all r_s and gamma pairs
-    r_range=np.linspace(1e-12,30,300)
+    #Note that this may need be modified for high redshift systems where r_eq -> inf
+    r_range=np.linspace(1e-12,100,500)
     y = 4*np.pi*rho_Dehnen_int(r_range,mass_0, r_s, gamma)
     all_masses = integrate.cumulative_trapezoid(y, r_range,initial=0)
     
     G_newton = astroc.G.to( u.Mpc *  u.km**2 / u.s**2 / u.solMass) #Mpc km2/s^2 kg
     a_g = ((-G_newton*all_masses)/(r_range**2)).value
     a_cosmo = ((q_z_function(z_val, cosmo_params,case) * H_z_function(z_val,cosmo_params,case)**2.)*r_range).value
-    w=np.where(r_range>1)[0]
-    f = interpolate.interp1d(a_cosmo[w]-a_g[w],r_range[w],fill_value='extrapolate')
+    w=np.where(r_range>1)[0] #This avoids accidental flagging in the core from numerical resolution issues
+    f = interpolate.interp1d(a_cosmo[w]-a_g[w],r_range[w])
     
     return float(f(0))*u.Mpc
 
