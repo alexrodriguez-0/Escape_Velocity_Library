@@ -35,7 +35,7 @@ Zv_fits_z_{z:.2f}_M200_{M:.1f}.pkl
 - **Mass:** $14.0 \le \log_{10}(M_{200}/M_\odot) \le 15.6$
 - **Sampling:** $50 \le N \le 1200$ member galaxies between $0.2$ and $1.0\,r_{200}$
 
-The $Z_v$ distribution in each bin is modeled as a **skew-normal**, whose parameters are smooth (approximately linear) functions of $\log_{10} N$ with weak dependence on $z$ and $M_{200}$. The analysis draws $Z_v$ for each bin via inverse-CDF sampling consistent with the grid. Each pickle file has shape (5,3,2), corresponding to the slope and intercept of the the location, scale, and skewness parameters within each of the 5 radial bins. Hence, the suppression in a given radial bin, N, $z$, and $M_{200}$ can be called to infer the 3D escape profile from data.
+The $Z_v$ distribution in each bin is modeled as a **skew-normal**, whose parameters are smooth (approximately linear) functions of $\log_{10} N$ with weak dependence on $z$ and $M_{200}$. The analysis draws $Z_v$ for each bin via inverse-CDF sampling consistent with the grid. Each pickle file has shape (5,3,2), corresponding to the slope and intercept of the the location, scale, and skewness parameters within each of the 5 radial bins. Hence, the suppression in a given radial bin, N, $z$, and $M_{200}$ can be called to infer the 3D escape profile from data. We note that a given redshift is rounded to the nearest 0.05, and the mass is rounded to the nearest 0.1 (in log-space). Depency on these parameters is weak, and mostly controlled by the sampling, N. The velocity anistropy $\beta$ is not a significant factor in the suppression.
 
 > You do **not** need AGAMA installed to run inference—only these precomputed calibration files are required.
 
