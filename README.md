@@ -150,7 +150,7 @@ The cluster sky center and systemic redshift are iteratively refined (default ~1
 The model implicitly assumes an initial guess for the cluster mass to bin the phase-space data and measure the sampling. The weak covariance of this starting estimate is elaborated upon in Rodriguez et al. 2025, where it is found to not be of significant concern. If $M_{200}$ is not reasonably known, one can pick a uniformly spaced range of masses (for instance between $10^{14}$ and $10^{15} M_{\odot}$).
 
 ### Potential User Modifications
-Not every system will have a clean edge profile, and in some cases the edge profile may be mis-identified due to interlopers, merging systems, etc. While the shifting-gapper should catch most interlopers (although not in the core), it will not catch all of them. To modify the model hyper-parameters like including interloper identification in the core, set coremin_cut = 0 (the default is to not mis-identify galaxies as interlopers in the first bin). The deafult cutoff in velocity is also 4500 km/s, although can also be modified. For example, via:
+Not every system will have a clean edge profile, and in some cases the edge profile may be mis-identified due to interlopers, merging systems, etc. While the shifting-gapper should catch most interlopers (although not in the core), it will not catch all of them. To modify the model hyper-parameters like including interloper identification in the core, set coremin_cut = 0 (the default is to not mis-identify galaxies as interlopers in the first bin). The deafult cutoff in velocity is also 4500 km/s, although this can also be modified, along with the monotonicity constraint on the edge profile. For example, via:
 ```python
 from escape_analysis_functions import main
 
@@ -165,7 +165,9 @@ results = main(
     cosmo_name,                     # str: e.g., 'FlatLambdaCDM'
     nwalkers=250, nsteps=2000       # MCMC controls
     coremin=0                       # float: optional interloper core inclusion flag
-    cut=3500                        # float: optional velocity cut modification flag
+    cut=5000                        # float: optional velocity cut modification flag
+    MONOTONIC=False                 # float: optional do not enforce monotonicity in outer bins
+
 )
 ```
 ---
