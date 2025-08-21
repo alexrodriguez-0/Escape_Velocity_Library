@@ -441,10 +441,10 @@ class ClusterDataHandler:
         return gal_ras_news, gal_decs_news, gal_zs_news, r_proj, v_los, N
 
     @staticmethod
-    def get_edge(bins, galaxy_r, galaxy_v, cl_z, R200, min_r, max_r, cut, cosmo_params, case):
+    def get_edge(bins, galaxy_r, galaxy_v, cl_z, R200, min_r, max_r, cut, cosmo_params, case, MONOTONIC=True):
         """
         Estimate the phase-space boundary, where monotonicity is enforced in the outer 3 bins.
-        
+
         Parameters:
         -----------
         bins : int
@@ -463,37 +463,51 @@ class ClusterDataHandler:
             Cosmological parameters
         case : str
             Cosmology case name
-            
+
+        MONOTONIC : bool, optional
+           Flag for whether to enforce monotonicity in outer 
+           bins (default: True)
+
         Returns:
         --------
         tuple
-            Radial positions, angular positions, and escape velocities
+            Radial positions, angular positions, and escape 
+            velocity edges
         """
         ww = np.linspace(min_r * R200, max_r * R200, bins + 1)
-        r_fit = []
-        v_fit_1 = []
-        
-        for i in range(len(ww) - 1):
-            w = np.where(((galaxy_r) > ww[i]) & (galaxy_r < ww[i+1]) & (np.abs(galaxy_v) < cut))[0]
-            if len(w) > 0:
-                if i == 0 or i == 1:
-                    v_fit_1.append(np.max((np.max(galaxy_v[w]), -np.min(galaxy_v[w]))))
-                    r_fit.append((ww[i] + ww[i+1]) / 2)
 
-                if i >= 2:
-                    max_i = v_fit_1[-1]
-                    w_use = np.where(np.abs(galaxy_v[w]) < max_i)[0]
-                    galaxy_v_use = galaxy_v[w][w_use]
-                    if len(galaxy_v_use) > 0:
-                        v_fit_1.append(np.max((np.max(galaxy_v_use), -np.min(galaxy_v_use))))
-                        r_fit.append((ww[i] + ww[i+1]) / 2)
-            else:
-                # Bin does not have galaxies
-                r_fit.append(np.nan)
-                v_fit_1.append(np.nan)
+        if MONOTONIC:
+            r_fit = np.full(bins, np.nan)
+            v_fit_1 = np.full(bins, np.nan)
 
-        v_fit_1 = np.array(v_fit_1)
-        r_fit = np.array(r_fit)
+            for i in range(len(ww) - 1):
+                w = np.where(((galaxy_r) > ww[i]) & (galaxy_r < ww[i+1]) & (np.abs(galaxy_v) < cut))[0]
+                if len(w) > 0:
+                    if i == 0 or i == 1:
+                        v_fit_1[i] = np.max((np.max(galaxy_v[w]), -np.min(galaxy_v[w])))
+                        r_fit[i] = (ww[i] + ww[i+1]) / 2
+                    if i >= 2:
+                        # For monotonicity, use the last valid value
+                        last_valid_idx = np.where(~np.isnan(v_fit_1[:i]))[0]
+                        if len(last_valid_idx) > 0:
+                            max_i = v_fit_1[last_valid_idx[-1]]
+                            w_use = np.where(np.abs(galaxy_v[w]) < max_i)[0]
+                            galaxy_v_use = galaxy_v[w][w_use]
+                            if len(galaxy_v_use) > 0:
+                                v_fit_1[i] = np.max((np.max(galaxy_v_use), -np.min(galaxy_v_use)))
+                                r_fit[i] = (ww[i] + ww[i+1]) / 2
+
+
+        else:
+            r_fit = np.full(bins, np.nan)
+            v_fit_1 = np.full(bins, np.nan)
+
+            for i in range(len(ww) - 1):
+                w = np.where(((galaxy_r) > ww[i]) & (galaxy_r < ww[i+1]) & (np.abs(galaxy_v) < cut))[0]
+                if len(w) > 0:
+                    v_fit_1[i] = np.max((np.max(galaxy_v[w]), -np.min(galaxy_v[w])))
+                    r_fit[i] = (ww[i] + ww[i+1]) / 2
+
 
         vesc_data_r = np.reshape(r_fit, (1, len(r_fit)))
         theta = (((r_fit * u.Mpc) / D_A(cl_z, cosmo_params, case)).value) * u.rad
@@ -501,7 +515,7 @@ class ClusterDataHandler:
         vesc_data = np.reshape(v_fit_1, (1, len(v_fit_1)))
 
         return vesc_data_r, vesc_data_theta, vesc_data
-    
+
         
 class MCMCMassEstimator:
     """Class to handle MCMC mass estimation with multiprocessing support."""
@@ -532,22 +546,19 @@ class MCMCMassEstimator:
         p_z = np.repeat(self.cl_z, 1)
         p_M200 = np.repeat(10**omega[0], len(p_z))
 
-        try:
-            # Use the escape_modeler method
-            ymodel_fixed = lambda p_theta_array, p_M200: self.escape_modeler.v_esc_den_M200(
-                p_theta_array, p_z, p_M200, self.cosmo_params, self.cosmo_name)
-            r_cosmo, ymodel = ymodel_fixed(p_theta_array, p_M200)
 
-            # Use the escape_modeler method for sampling Zv
-            Zv_vec = self.escape_modeler.sample_Zv(self.N, self.bins, np.log10(self.M200), self.cl_z)
-            ymodel = ymodel / Zv_vec
+        # Use the escape_modeler method
+        ymodel_fixed = lambda p_theta_array, p_M200: self.escape_modeler.v_esc_den_M200(
+            p_theta_array, p_z, p_M200, self.cosmo_params, self.cosmo_name)
+        r_cosmo, ymodel = ymodel_fixed(p_theta_array, p_M200)
 
-            inv_sigma2 = 1.0 / (yerr**2)
-            return np.nan_to_num(-0.5 * (np.sum((y - ymodel)**2 * inv_sigma2)))
+        # Use the escape_modeler method for sampling Zv
+        Zv_vec = self.escape_modeler.sample_Zv(self.N, self.bins, np.log10(self.M200), self.cl_z)
+        ymodel = ymodel / Zv_vec
 
-        except (TypeError, ValueError, RuntimeError) as e:
-            #print(f"Rejected M200={10**omega[0]:.2e} due to: {str(e)}")
-            return -np.inf
+        inv_sigma2 = 1.0 / (yerr**2)
+        return np.nan_to_num(-0.5 * (np.sum((y - ymodel)**2 * inv_sigma2)))
+
 
     def lnprob(self, omega, x, y, yerr):
         """Log posterior probability function."""
@@ -563,7 +574,7 @@ class MCMCMassEstimator:
 
 def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_data,
                                   M200, vesc_error, coremin_cut, cut, bins,
-                                  cosmo_params, cosmo_name):
+                                  cosmo_params, cosmo_name,MONOTONIC):
     """
     Prepares the Escape Velocity Mass Estimation by estimating the edge from phase-space data.
     Raises ValueError if the run is outside the calibrated domain or if the edge is unusable.
@@ -643,7 +654,7 @@ def mass_estimation_preprocessing(cluster_positional_data, galaxy_positional_dat
 
     # --- edge finding ---
     vesc_data_r, vesc_data_theta, vesc_data = data_handler.get_edge(
-        bins, galaxy_r, galaxy_v, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name
+        bins, galaxy_r, galaxy_v, cl_z, R200, min_r, max_r, cut, cosmo_params, cosmo_name, MONOTONIC=MONOTONIC
     )
 
     # normalize shapes (expect 1D arrays of length `bins`)
@@ -743,19 +754,19 @@ def run_mcmc_mass_estimation(M200, cl_z, N, vesc_data_theta, vesc_data, vesc_dat
         sampler.run_mcmc(p0, nsteps, progress=progress)
         
         # Extract results
-        #samples=sampler.chain.reshape((-1, 1)).flatten()
+        samples=sampler.chain.reshape((-1, 1)).flatten()
         
         # Burn-in: discard first half of *steps*
-        burn = int(0.5 * nsteps)  # or 3*max(tau)
-        flat = sampler.get_chain(discard=burn, flat=True)[:, 0]
-        logp = sampler.get_log_prob(discard=burn, flat=True)
-        samples = flat[np.isfinite(logp)]
+        #burn = int(0.5 * nsteps)  # or 3*max(tau)
+        #flat = sampler.get_chain(discard=burn, flat=True)[:, 0]
+        #logp = sampler.get_log_prob(discard=burn, flat=True)
+        #samples = flat[np.isfinite(logp)]
         #try:
             #tau = sampler.get_autocorr_time(quiet=True)
             # consider thin = int(0.5 * max(tau))
         #except Exception:
             #pass
-        plt.hist(samples)
+        plt.hist(samples,density=True)
         plt.xlabel(r'Posterior $M_{200}$')
         plt.show()
 
@@ -859,7 +870,7 @@ def mass_estimation_post_processing(escape_modeler,results,M200,M200_err_up,M200
 def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data,
          M200, M200_err_up, M200_err_down, cluster_name, cosmo_params, cosmo_name,
          nwalkers=250, nsteps=2000, n_processes=os.cpu_count(),
-         vesc_error=30, coremin_cut=0.44, cut=4500, bins=5):
+         vesc_error=30, coremin_cut=0.44, cut=4500, bins=5, MONOTONIC=True):
     """
     Perform escape velocity-based cluster mass estimation using MCMC analysis.
     
@@ -951,6 +962,8 @@ def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data
         5 bins as this is what the Zv calibration is measured for. DO NOT MODIFY unless
         you have also re-measured the Zv calibration for your desired bin count.
         
+    MONOTONIC : bool, optional (default=True)
+        Flag for whether to enforce monotonicity in outer  bins (default: True)
     Returns
     -------
     results : Dictionary containing:
@@ -995,7 +1008,7 @@ def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data
     
     cl_ra, cl_dec, cl_z = cluster_positional_data
     galaxy_r, galaxy_v, N, vesc_data_r, vesc_data_theta, vesc_data, vesc_data_err, cl_z=mass_estimation_preprocessing(cluster_positional_data,galaxy_positional_data,
-                                                       M200, vesc_error,coremin_cut, cut, bins, cosmo_params,cosmo_name)
+                                                       M200, vesc_error,coremin_cut, cut, bins, cosmo_params,cosmo_name,MONOTONIC)
 
     escape_modeler = EscapeVelocityModeling(path_to_calibration=path_to_Zv_calibration)
     
