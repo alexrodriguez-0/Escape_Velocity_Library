@@ -947,7 +947,9 @@ def main(path_to_Zv_calibration, galaxy_positional_data, cluster_positional_data
         finding step (guards against extreme outliers).
         
     bins : float, optional (default=5)
-        The number of bins used the divide the phase-space edge. The default will be 5 bins as this is what the Zv calibration is measured for. DO NOT MODIFY unless you have also re-measured the Zv calibration for your desired bin count.
+        The number of bins used the divide the phase-space edge. The default will be
+        5 bins as this is what the Zv calibration is measured for. DO NOT MODIFY unless
+        you have also re-measured the Zv calibration for your desired bin count.
         
     Returns
     -------
