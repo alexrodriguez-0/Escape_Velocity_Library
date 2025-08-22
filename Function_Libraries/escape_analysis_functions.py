@@ -348,7 +348,6 @@ class ClusterDataHandler:
                                np.radians(gal_ras), np.radians(gal_decs))
 
         R_proj = sep * d_A  # Projected distance in Mpc
-        from astropy import constants as const
         c_value = const.c.value / 1000  # speed of light in km/s
         v_los = c_value * (gal_z - cl_z) / (1 + cl_z)
 
