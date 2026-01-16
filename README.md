@@ -1,4 +1,4 @@
-# Escape_Velocity_Library
+# Escape_Velocity_Library (2025 Edition)
 
 Tools to infer **galaxy cluster masses** from spectroscopic radius–velocity phase space via the **escape-velocity edge**, with a calibrated suppression factor $Z_v$ that corrects for sparse sampling. The workflow follows the methodology in **Rodriguez et al. (2025)** and includes an end-to-end example using **HeCS / HeCS-SZ** spectroscopy (Rines et al. 2013; Rines et al. 2016; >40,000 galaxies).
 
